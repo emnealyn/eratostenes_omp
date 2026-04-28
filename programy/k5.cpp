@@ -1,10 +1,13 @@
 #include <cstdlib> 
 #include <cstring> 
 #include <cmath>  
+#include <cstdio>
+#include <omp.h>
 
 int main(){
-	int m = 0;
-	int n = 10;
+	int m = 2;
+	int n = 10e4;
+	double start_time, stop_time;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
 	memset(result, true, (n - m + 1) * sizeof(bool));
@@ -17,6 +20,8 @@ int main(){
 	if ((n - m) % blockSize != 0) { 
 		numberOfBlocks++;
 	}
+
+	start_time = omp_get_wtime();
 	#pragma omp parallel for static // ?
 	for (int i = 0; i < numberOfBlocks; i++) {
 		int low = m + i * blockSize; int high = m + i * blockSize + blockSize;
@@ -39,4 +44,7 @@ int main(){
 			}
 		}
 	}
+	stop_time = omp_get_wtime();
+
+	printf("Czas trwania obliczen - wallclock %f sekund \n", stop_time-start_time);
 }
