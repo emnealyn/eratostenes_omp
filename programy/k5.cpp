@@ -5,8 +5,8 @@
 #include <omp.h>
 
 int main(){
-	int m = 2;
-	int n = 10e4;
+	int m = 0;
+	int n = 10e8;
 	double start_time, stop_time;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
