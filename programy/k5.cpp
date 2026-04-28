@@ -6,10 +6,10 @@
 
 int main(){
 	int m = 2;
-	int n = 1e8;
+	int n = 1e9;
 	double start_time, stop_time;
 
-	start_time = omp_get_wtime();
+	// start_time = omp_get_wtime();
 	int prime_counter = 0;
 
 	// Alokujemy tablicę bez memset - zainicjalizujemy ją równolegle w blokach
@@ -32,7 +32,7 @@ int main(){
 	int numberOfBlocks = (n - m) / blockSize + ((n - m) % blockSize != 0);
 
 	// Główna pętla równoległa. Schedule(dynamic) najlepiej rozkłada obciążenie w sicie segmentowym.
-	#pragma omp parallel for schedule(dynamic)
+	#pragma omp parallel for schedule(static)
 	for (int i = 0; i < numberOfBlocks; i++) {
 		int low = m + i * blockSize; 
 		int high = low + blockSize - 1;
@@ -65,10 +65,10 @@ int main(){
 		}
 	}
 
-	stop_time = omp_get_wtime();
-	double duration = stop_time - start_time;
+	// stop_time = omp_get_wtime();
+	// double duration = stop_time - start_time;
 
-	printf("Czas przetwarzania: %.6f s\n", duration);
+	// printf("Czas przetwarzania: %.6f s\n", duration);
 	printf("Liczba liczb pierwszych: %d\n", prime_counter);
 
 	free(result);
