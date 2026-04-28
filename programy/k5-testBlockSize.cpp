@@ -25,7 +25,7 @@ int main(){
 	printf("----------------------------------------\n");
 
 	// Testowanie różnych wielkości bloków (potęgi 2)
-	for (int blockSize = 1024; blockSize <= (n - m); blockSize *= 2) {
+	for (int blockSize = 16; blockSize <= (n - m); blockSize *= 2) {
 		memset(result, true, (n - m + 1) * sizeof(bool));
 		int numberOfBlocks = (n - m) / blockSize;
 		if ((n - m) % blockSize != 0) numberOfBlocks++;
