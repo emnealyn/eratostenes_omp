@@ -1,0 +1,17 @@
+*.aux
+*.log
+*.synctex.gz
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.xdv
+icx
+icx.exe
+*.o
+*.obj
+*.exe
