@@ -1,0 +1,391 @@
+\documentclass[10pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{babel}
+\babelprovide[import, main]{polish}
+\usepackage[a4paper, margin=1.5cm]{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstdefinestyle{mystyle}{
+    basicstyle=\ttfamily\small,
+    frame=single,
+    breaklines=true,
+    captionpos=b,
+    showstringspaces=false
+}
+
+\title{Projekt I przetwarzanie równoległe 2025/26 SS, OpenMP, Vtune}
+\author{Emilia Bonk 160108 \\ Szymon Urban 160271}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Wstęp.}
+
+\begin{itemize}
+\item \textbf{Nazwa przedmiotu:} Laboratorium z przetwarzania równoległego
+\item \textbf{Autorzy:} Emilia Bonk (160108), Szymon Urban (160271)
+\item \textbf{Grupa dziekańska:} L09
+\item \textbf{Termin zajęć laboratoryjnych:} Wtorek 9:45-11:15
+\item \textbf{Termin oddania sprawozdania:} 5.05.2026
+\item \textbf{Wersja sprawozdania:} pierwsza
+\item \textbf{Opis zadania:}
+Celem ćwiczenia była analiza implementacji algorytmu Sita Eratostenesa 
+w środowisku równoległym i sekwencyjnym z wykorzystaniem biblioteki OpenMP. 
+Zadanie polegało na analizie i modyfikacji podanych kodów, z róznymi 
+implementacjami algorytmu, a następnie porównaniu ich wydajności.
+\item \textbf{Adres e-mail:} emilia.bonk@student.put.poznan.pl, szymon.urban@student.put.poznan.pl
+\end{itemize}
+
+\section{Informacje techniczne.}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Parametr} & \textbf{Wartość} \\
+\hline
+Model procesora & 13th Gen Intel(R) Core(TM) i5-13500H \\
+\hline
+Liczba procesorów fizycznych & 1 \\
+\hline
+Liczba rdzeni & 12 \\
+\hline
+Liczba procesorów logicznych & 16 \\
+\hline
+Pamięć cache L1 & 1,1 MB \\
+\hline
+Pamięć cache L2 & 9,0 MB \\
+\hline
+Pamięć cache L3 & 18,0 MB \\
+\hline
+System operacyjny & Windows 11 \\
+\hline
+Kompilator & g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) \\
+\hline
+Wersja kompilatora & 13.3.0 \\
+\hline
+Program testujący & Intel VTune Profiler 2026.0.0\\
+\hline
+\end{tabular}
+\caption{Informacje techniczne dotyczące środowiska testowego}
+\end{table}
+
+
+\newpage
+\section{Prezentacja i analiza kodów.}
+
+\subsection*{K1 - Algorytm sekwencyjny oparty na próbnych dzieleniach.}
+\textbf{Oznaczenie skrótowe:} SEQ-DIV-BASIC
+\\ \\
+Wariant oznaczony jako SEQ-DIV-BASIC to algorytm sekwencyjny oparty na 
+metodzie dzielenia próbnego. Przetwarzanie rozpoczyna się od przygotowania 
+struktur danych: tablicy result dla zakresu $[m, n]$ oraz pomocniczej tablicy 
+primeArray przechowującej liczby pierwsze z przedziału $[2, \sqrt{n}]$. 
+Pierwsza pętla for wypełnia tablicę pomocniczą, eliminując z rozważania liczby złożone, 
+natomiast druga pętla stanowi główne zadanie obliczeniowe, sprawdzając 
+podzielność każdej liczby $i$ przez wyznaczone wcześniej dzielniki. W tym podejściu 
+zbiór zadań obejmuje weryfikację $n - m + 1$ elementów, przy czym koszt wykonania 
+pojedynczego zadania jest wysoce zmienny. Liczby parzyste lub posiadające małe 
+dzielniki są procesowane błyskawicznie dzięki instrukcji break, podczas gdy liczby 
+pierwsze wymagają wykonania pełnego cyklu sprawdzeń aż do wartości $\sqrt{i}$, 
+co sprawia, że czas obliczeń rośnie wraz z wartością sprawdzanej liczby. 
+Ponieważ jest to kod sekwencyjny, nie występuje tu podział pracy między jednostki 
+obliczeniowe – wszystkie zadania są przydzielane do jednego wątku głównego i 
+wykonywane szeregowo. Zastosowanie tablic boolowskich i zmiennych licznikowych 
+$i$ oraz $j$ pozwala na bezpośrednią iterację po zadanym zbiorze, zapewniając pełną 
+deterministyczność przebiegu algorytmu i dając zawsze poprawny wynik.
+\\
+
+\begin{lstlisting}[style=mystyle, caption={Kod programu k1.cpp}, label={lst:k1}]
+int main(){
+	int m = 2;
+	int n = 100000000;
+	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
+	memset(result, true, (n - m + 1) * sizeof(bool));
+
+	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
+	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+
+	for (int i = 2; i * i <= n; i++) {
+		for (int j = 2; j * j <= i; j++) {
+			if (primeArray[j] == true && i % j == 0) { primeArray[i] = false; 
+				break;
+			}
+		}
+	}
+	for (int i = m; i <= n; i++){
+		for (int j = 2; j * j <= i; j++){
+			if (primeArray[j] == true && i % j == 0) {
+				result[i - m] = false;
+				break; 
+			}
+		}
+	}
+}
+\end{lstlisting}
+
+\newpage
+
+\subsection*{K2 - Liczby pierwsze wyznaczane równolegle
+przez dzielenie w zakresie <m,n>.}
+\textbf{Oznaczenie skrótowe:} PAR-DIV-GUIDED
+\\ \\
+Wariant ten wprowadza zrównoleglenie głównej pętli obliczeniowej 
+przy użyciu dyrektywy \texttt{\#pragma omp parallel for schedule(guided)}.
+Przetwarzanie polega na dynamicznym pobieraniu porcji zadań z puli 
+wszystkich iteracji $[m, n]$. Charakterystyczną cechą tego podejścia jest to, 
+że rozmiar przydzielanych paczek (chunks) maleje wykładniczo w miarę postępu 
+obliczeń. Na początku wątki otrzymują duże bloki liczb, co minimalizuje narzut 
+związany z synchronizacją (pobieraniem zadań). W miarę zbliżania się do końca 
+zakresu, porcje stają się coraz mniejsze, co pozwala na precyzyjne „wypełnienie” 
+czasu pracy wszystkich rdzeni. Zbiór zadań pozostaje ten sam ($n - m + 1$ liczb), 
+jednak dzięki temu mechanizmowi, różnice w koszcie sprawdzania małych i dużych liczb 
+są niwelowane: wątek, który szybciej upora się ze swoją porcją, natychmiast pobiera 
+kolejną, mniejszą partię. Zapobiega to sytuacji, w której jeden wątek wciąż pracuje 
+nad ciężkim końcem zakresu, podczas gdy inne pozostają bezczynne. W programie nie będzie
+występowało zjawisko wyścigu, gdyż każdy wątek operuje na odrębnych elementach tablicy result,
+Zjawisko \textbf{false sharingu} może wystąpić, kolizje w pamięci cache będą miały miejsce głównie na "stykach" bloków danych tablicy, 
+szczególnie w późniejszych etapach, gdy paczki stają się mniejsze. 
+\textbf{Synchronizacja} jest wprowadzana przy pomocy klauzuli schedule(guided), 
+na podstawie dostępu do wspólnego licznika iteracji.
+Nie ma w tej wersji kodu problemu braku \textbf{zrównoważenia obciążenia},
+Mechanizm samoregulacji rozmiaru paczek sprawia, że procesory są obciążone niemal identycznie 
+przez cały czas trwania programu. 
+\\ \\
+\textbf{Uzasadnienie wyboru podziału pracy:} 
+Przewagą strategii \texttt{guided} nad \texttt{static} jest rozwiązanie
+problemu bezczynności procesorów na końcu zakresu, gdzie liczby są najtrudniejsze 
+do sprawdzenia. \texttt{Guided} zmniejsza narzut komunikacyjny, biorąc najpierw duże porcje
+(tam gdzie liczby są małe i szybkie do sprawdzenia), a następnie stopniowo 
+przechodząc do mniejszych, co pozwala na lepsze wykorzystanie zasobów niż \texttt{dynamic}, które 
+co prawda pozwala wybrać dowolny rozmiar paczki, ale wciąż nie jest tak efektywne jak \texttt{guided} w kontekście tego algorytmu.
+\\
+\begin{lstlisting}[style=mystyle, caption={Kod programu k2.cpp}, label={lst:k2}]
+int main(){
+	int m = 2;
+	int n = 100000000;
+
+	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
+	memset(result, true, (n - m + 1) * sizeof(bool));
+
+	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
+	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+
+	for (int i = 2; i * i <= n; i++) {
+		for (int j = 2; j * j <= i; j++) {
+			if (primeArray[j] == true && i % j == 0) { 
+				primeArray[i] = false; break; 
+			}
+		}
+	}
+	#pragma omp parallel
+	{
+	#pragma omp for schedule(guided)
+	for (int i = m; i <= n; i++){
+		for (int j = 2; j * j <= i; j++){
+			if (primeArray[j] == true && i % j == 0) { 
+				result[i - m] = false;
+				break;
+				}
+			}
+		}
+	} 
+}
+\end{lstlisting}
+
+\newpage
+
+\subsection*{K3 - Sito sekwencyjne bez lokalności dostępu do danych.}
+\textbf{Oznaczenie skrótowe:} SEQ-SIEVE-NL
+\\ \\
+W tym wariancie zamiast sprawdzać każdą liczbę z osobna pod kątem jej dzielników, 
+algorytm iteruje po kolejnych liczbach pierwszych i „wykreśla” (oznacza jako false) 
+wszystkie ich wielokrotności w tablicy wyników. Przetwarzanie składa się z dwóch 
+faz: wyznaczenia małego sita dla dzielników oraz głównego sita dla zakresu $[m, n]$.
+Zadaniem jest wykreślenie wielokrotności dla każdej liczby pierwszej $i \le \sqrt{n}$. 
+Koszt wykonania zadania jest zależny od wartości $i$ – dla małych liczb pierwszych 
+(np. 2, 3, 5) liczba wykreśleń jest ogromna (dla $i=2$ jest to połowa zakresu), 
+natomiast dla większych liczb pierwszych koszt ten gwałtownie spada. Łączna 
+złożoność jest znacznie niższa niż w dzieleniu próbnym i wynosi $O(n \log \log n)$.
+Wszystkie operacje wykonywane są przez jeden wątek główny. Wykreślanie odbywa się 
+skokowo (instrukcja j += i), co jest bardzo efektywne dla procesora (dostęp 
+sekwencyjny z krokiem). Jako że jest to kod wykonywany sekwencyjnie, nie będzie tu
+żadnego z problemów związanych z równoleglizacją zadań tj false sharingu, wyścigu czy braku zrównoważenia
+podziału pracy.
+\\
+
+
+\begin{lstlisting}[style=mystyle, caption={Kod programu k3.cpp}, label={lst:k3}]
+int main(){
+	int m = 2;
+	int n = 100000000;
+
+	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
+	memset(result, true, (n - m + 1) * sizeof(bool));
+
+	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
+	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+
+	for (int i = 2; i*i*i*i <= n; i++) {
+		if (primeArray[i] == true) {
+			for (int j = i * i; j*j <= n; j+=i) {
+				primeArray[j] = false;
+			}
+		}
+	}
+	for (int i = 2; i*i <= n; i++){
+		if (primeArray[i]) {
+			int firstMultiple = (m / i);
+			if (firstMultiple <= 1) {
+				firstMultiple = i + i;
+			} else if (m % i) { 
+				firstMultiple = (firstMultiple * i) + i;
+			} else {firstMultiple = (firstMultiple * i);}
+			for (int j = firstMultiple; j <= n; j+=i) { 
+				result[j-m] = false;
+			}
+		}
+	}
+}
+\end{lstlisting}
+
+\newpage
+\subsection*{K3a - Sito sekwencyjne z lokalnością dostępu do danych.}
+\textbf{Oznaczenie skrótowe:} SEQ-SIEVE-LL
+\\ \\ 
+TO DO!!!!!
+\newpage
+\subsection*{K4 - Sito równoległe funkcyjne bez lokalności dostępu do danych.}
+\textbf{Oznaczenie skrótowe:} PAR-SIEVE-NL
+\\ \\
+Jest to równoległa wersja kodu SEQ-SIEVE-NL, podział pracy odbywa się na poziomie pętli wybierającej liczby pierwsze (i)
+za pomocą dyrektywy \texttt{\#pragma omp parallel for schedule(dynamic, 1)}. 
+Każdy wątek otrzymuje pewną pulę liczb pierwszych i odpowiada za wykreślenie 
+wszystkich ich wielokrotności w całej tablicy result. Zadaniem wątku jest 
+przeprowadzenie skokowej eliminacji liczb złożonych dla przypisanych mu wartości i. 
+Koszt zadania jest wyjątkowo nierównomierny i malejący: liczba i=2 wymaga 
+wykreślenia $N/2$ elementów, podczas gdy liczby pierwsze bliskie $\sqrt{n}$ 
+wymagają zaledwie kilku operacji. W programie będzie występował problem
+\textbf{race condition}, jednak dla nas "bezpieczny" logicznie. Wynika on z faktu, że 
+różne liczby pierwsze mają wspólne wielokrotności (np. dla $i=2$ i $i=3$ wspólną 
+wielokrotnością jest 6, 12, 18...). Oba wątki będą próbowały zapisać 
+result[j-m] = false pod ten sam indeks w tym samym czasie. Wynik końcowy będzie 
+poprawny (bo oba wątki wpisują tę samą wartość: false), ale na poziomie architektury 
+procesora powoduje to ogromne straty wydajności. Występować będzie również zjawisko \textbf{false sharingu},
+wątki będą zapisywać często i skakać po wartościach w tablicy result, przez co często będą
+trafiać w te same linie cache, zmuszając system do ciągłego odświeżania danych między rdzeniami, co znacząco obniży wydajność.
+Problem \textbf{braku zrównoważenia obciążenia} będzie zniwelowany przez zastosowanie strategii \texttt{dynamic}, która
+pozwala na dynamiczne przydzielanie zadań w miarę ich wykonania, co sprawia, że wątki, które szybciej uporały się z ciężkimi 
+zadaniami (duże i), mogą natychmiast przejąć kolejne, mniejsze zadania (małe i), 
+zapewniając lepsze wykorzystanie zasobów. \textbf{Synchronizacja} wątków odbędzie się na końcu pętli for, gdy 
+wszystkie wątki zakończą swoje zadania, nie ma więc problemu z synchronizacją w trakcie przetwarzania, która dodatkowo
+zwolniłaby działanie programu.
+\\ \\
+\textbf{Uzasadnienie wyboru podziału pracy:}
+Strategia \texttt{(dynamic, 1)} ma swoją przewagę nad \texttt{static} dzięki dynamicznemu przydzialaniu
+zadań wątkom (pierwsze zadania będą największe, potem kolejne są coraz mniejsze). Ze względu na
+tą kolejność zadań (od najcięższych na początku do najlżejszych na końcu) zdecydowaliśmy się też, nie używać
+strategii \texttt{guided}, która lepiej się nadaje na odwrotną tendencję trudności zadań.
+\\
+
+\begin{lstlisting}[style=mystyle, caption={Kod programu k4.cpp}, label={lst:k4}]
+int main(){
+	int m = 2;
+	int n = 100000000;
+
+	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
+	memset(result, true, (n - m + 1) * sizeof(bool));
+
+	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
+	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+
+	for (int i = 2; i*i*i*i <= n; i++) {
+		if (primeArray[i] == true) {
+			for (int j = i*i; j*j <= n; j+=i) {
+				primeArray[j] = false;
+			} 
+		}
+	}
+	#pragma omp parallel for schedule(dynamic, 1)
+	for (int i = 2; i*i <= n; i++){
+		if (primeArray[i]) {
+			int firstMultiple = (m / i);
+			if (firstMultiple <= 1) {
+				firstMultiple = i + i;
+			} else if (m % i){ 
+				firstMultiple = (firstMultiple * i) + i;
+			} else {
+				firstMultiple = (firstMultiple * i);
+			}
+			for (int j = firstMultiple; j <= n; j+=i) {
+				result[j-m] = false;
+			}
+		}
+	}
+}
+\end{lstlisting}
+
+\newpage
+\subsection*{K4a - Sito równoległe  funkcyjne bez lokalności dostępu do danych  z usunięciem redundancji zapisów.}
+\textbf{Oznaczenie skrótowe:} PAR-SIEVE-NL-A
+\\ \\ 
+Jest to wersja programu PAR-SIEVE-NL z dodatkiem sprawdzania warunku \texttt{if result[j-i]}. Od kodu k4 różni go tylko proces 
+zapisu wyniku, mający na celu zniwelowanie strat wydajności wywołanych wyścigiem, i dużej ilości kolizji w pamięci cache. Podejście
+to zapobiega wyścigowi, jednak nie rozwiązuje w pełni problemu \textbf{false sharingu}, ponieważ wątki wciąż mogą zapisywać do tych
+samych linii chache (tyllko tym razem już nie do tych samych elementów tablicy) ...................
+\\
+\begin{lstlisting}[style=mystyle, caption={Kod programu k4a.cpp}, label={lst:k4a}]
+int main(){
+	int m = 2;
+	int n = 100000000;
+
+	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
+	memset(result, true, (n - m + 1) * sizeof(bool));
+
+	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
+	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+
+	for (int i = 2; i*i*i*i <= n; i++) {
+		if (primeArray[i] == true) {
+			for (int j = i*i; j*j <= n; j+=i) {
+				primeArray[j] = false;
+			}
+		}
+	}
+	#pragma omp parallel for schedule(dynamic, 1)
+	for (int i = 2; i*i <= n; i++){
+		if (primeArray[i]) {
+			int firstMultiple = (m / i);
+			if (firstMultiple <= 1) {
+				firstMultiple = i + i;
+			} else if (m % i){ 
+				firstMultiple = (firstMultiple * i) + i;
+			} else {
+				firstMultiple = (firstMultiple * i);
+			}
+			for (int j = firstMultiple; j <= n; j+=i) {
+				if (result[j-m]) result[j-m] = false;
+			} 
+		}
+	}
+}
+\end{lstlisting}
+
+
+\newpage
+\subsection*{K5 - Sito równoległe domenowe z lokalnością dostępu do danych}
+\textbf{Oznaczenie skrótowe:} PAR-SIEVE-DOM-LL
+
+\newpage
+\section{Prezentacja wyników i umówienie przebiegu eksperymentu.}
+
+\newpage
+\section{Wnioski.}
+
+
+\end{document}
