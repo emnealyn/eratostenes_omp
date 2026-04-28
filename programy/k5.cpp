@@ -22,7 +22,7 @@ int main(){
 	}
 
 	start_time = omp_get_wtime();
-	#pragma omp parallel for static // ?
+	#pragma omp parallel for schedule(static) // ?
 	for (int i = 0; i < numberOfBlocks; i++) {
 		int low = m + i * blockSize; int high = m + i * blockSize + blockSize;
 		if (high > n) {
