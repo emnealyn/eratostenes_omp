@@ -15,3 +15,6 @@ icx.exe
 *.o
 *.obj
 *.exe
+*.pdb
+*.ilk
+k5test

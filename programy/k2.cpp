@@ -25,7 +25,7 @@ int main(){
 	}
 	#pragma omp parallel
 	{
-	#pragma omp for schedule(static)//? Jaki podział pracy 
+	#pragma omp for schedule(guided)
 	for (int i = m; i <= n; i++){
 		for (int j = 2; j * j <= i; j++){
 			if (primeArray[j] == true && i % j == 0) { 

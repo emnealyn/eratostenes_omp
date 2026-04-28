@@ -23,7 +23,7 @@ int main(){
 			}
 		}
 	}
-	#pragma omp parallel for schedule(static) // ? Jaki podział pracy ?
+	#pragma omp parallel for schedule(dynamic, 1)
 	for (int i = 2; i*i <= n; i++){
 		if (primeArray[i]) {
 			int firstMultiple = (m / i);
