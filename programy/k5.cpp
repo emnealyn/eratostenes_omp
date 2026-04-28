@@ -4,7 +4,13 @@
 #include <cstdio>
 #include <omp.h>
 
-int calculate(int n, int m){
+
+int main(){
+	int m = 0;
+	int n = 1e8;
+	double start_time, stop_time;
+
+	start_time = omp_get_wtime();
 	int prime_counter=0;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
@@ -27,7 +33,7 @@ int calculate(int n, int m){
 		numberOfBlocks++;
 	}
 
-	#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(guided)
 	for (int i = 0; i < numberOfBlocks; i++) {
 		int low = m + i * blockSize; 
 		int high = low + blockSize - 1;
@@ -62,19 +68,6 @@ int calculate(int n, int m){
 
 	free(result);
     free(primeArray);
-	
-	return prime_counter;
-}
-
-
-int main(){
-	int m = 0;
-	int n = 1e8;
-	double start_time, stop_time;
-
-	start_time = omp_get_wtime();
-	int prime_counter = 0;
-	prime_counter = calculate(n, m);
 	stop_time = omp_get_wtime();
 
 	double duration = stop_time - start_time;
