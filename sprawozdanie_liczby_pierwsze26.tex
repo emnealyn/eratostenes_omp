@@ -380,7 +380,18 @@ int main(){
 \newpage
 \subsection*{K5 - Sito równoległe domenowe z lokalnością dostępu do danych}
 \textbf{Oznaczenie skrótowe:} PAR-SIEVE-DOM-LL
-
+\\ \\
+\\
+\textbf{Uzasadnienie wyboru rozmiaru bloku:}
+\\ \\
+\textbf{Uzasadnienie wyboru podziału pracy:}
+W tym wypadku została wybrana strategia \texttt{(static, 1)}, dzięki podziałowi
+na bloki, obciążenie czasowe poszczególnych zadań jest wyrównane (nierówność występuje 
+tylko na $\sqrt{j}$). Dzięki temu, nie potrzebujemy dynamicznego mechanizmu przydziału
+zadań, które we wcześniejszych kodach miało nam zagwarantować zrównoważenie. Zrezygnowanie
+ze strategii dynamicznych pozwala nam oszczędzić narzut związany z komunikacją, sprawiając
+że to właśnie strategia static będzie najlepszym wyborem.  
+\\ \\
 BlockSize       | Czas [s]       
 ----------------------------------------
 1024            | 19.688758      
