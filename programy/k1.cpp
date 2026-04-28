@@ -6,7 +6,7 @@
 
 int main(){
 	int m = 0;
-	int n = 10e8;
+	int n = 1e8;
 	double start_time, stop_time;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));

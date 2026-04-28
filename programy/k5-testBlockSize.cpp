@@ -6,7 +6,7 @@
 
 int main(){
 	int m = 0;
-	int n = 10e8; // Zwiększone n dla lepszych pomiarów cache
+	int n = 1e8;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
 	bool* primeArray = (bool*)malloc((int)(sqrt(n) + 1) * sizeof(bool));

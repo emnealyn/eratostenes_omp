@@ -6,25 +6,27 @@
 
 int main(){
 	int m = 0;
-	int n = 10e8;
+	int n = 1e8; // Zmniejszono do 10^8 dla stabilnego testu, można zwiększyć wg potrzeb
 	double start_time, stop_time;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
 	memset(result, true, (n - m + 1) * sizeof(bool));
 
-	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
-	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+	bool* primeArray = (bool*)malloc((int)(sqrt(n) + 1) * sizeof(bool));
+	memset(primeArray, true, (int)(sqrt(n) + 1) * sizeof(bool));
 	
-	int blockSize = 2;
+
+	int blockSize = 65536; // Optymalna wartość 64 KB dla i5-13500H
 	int numberOfBlocks = (n - m) / blockSize;
 	if ((n - m) % blockSize != 0) { 
 		numberOfBlocks++;
 	}
 
 	start_time = omp_get_wtime();
-	#pragma omp parallel for schedule(static) // ?
+	#pragma omp parallel for schedule(static)
 	for (int i = 0; i < numberOfBlocks; i++) {
-		int low = m + i * blockSize; int high = m + i * blockSize + blockSize;
+		int low = m + i * blockSize; 
+		int high = low + blockSize - 1;
 		if (high > n) {
 			high = n;
 		}
@@ -46,5 +48,13 @@ int main(){
 	}
 	stop_time = omp_get_wtime();
 
-	printf("Czas trwania obliczen - wallclock %f sekund \n", stop_time-start_time);
+	double duration = stop_time - start_time;
+	double speed = (double)(n - m + 1) / duration;
+
+	printf("Czas przetwarzania: %.6f s\n", duration);
+	printf("Prędkość obliczeń: %.2E 1/s (liczba zbadanych liczb na sekundę obliczeń)\n", speed);
+
+	free(result);
+	free(primeArray);
+	return 0;
 }
