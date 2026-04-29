@@ -1,0 +1,16 @@
+-r
+C:\EmNotatki\6.SEMESTR\PROW\laby\eratostenes_omp\programy\r000hs
+--stack-stitching
+--data-limit-mb=1000
+--disk-space-limit=0
+--mrte-type=java,dotnet,python
+--stack-unwind-limit=8388608
+--itt-config=frame
+--itt-config=task,event,counter
+--stackwalk=offline
+--mrte-mode=auto
+--type=cpu:stack
+--interval=10
+--platform-type=152
+--
+./k5.exe

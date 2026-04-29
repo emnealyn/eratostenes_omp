@@ -9,17 +9,14 @@ int calculate(int n, int m){
     int prime_counter = 0;
     int limit = (int)sqrt(n);
 
-    // Główna tablica wyników
     bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
     memset(result, true, (n - m + 1) * sizeof(bool));
         
-    // Tablica na sito bazowe (do sqrt(n))
     bool* primeArray = (bool*)malloc((limit + 1) * sizeof(bool));
     memset(primeArray, true, (limit + 1) * sizeof(bool));
     primeArray[0] = false;
     primeArray[1] = false;
     
-    // 1. POPRAWNE SITO BAZOWE (szukamy liczb pierwszych do sqrt(n))
 	for (int i = 2; i*i*i*i <= n; i++) {
 		if (primeArray[i] == true) {
 			for (int j = i * i; j*j <= n; j+=i) {
@@ -28,14 +25,12 @@ int calculate(int n, int m){
 		}
 	}
 
-    // 2. SITO DOMENOWE (BLOKOWE) - LOKALNOŚĆ DOSTĘPU (wzorowane na k5.cpp)
-    int blockSize = 65536; // Optymalna wartość 64 KB
+    int blockSize = 65536; 
     int numberOfBlocks = (n - m) / blockSize;
     if ((n - m) % blockSize != 0) { 
         numberOfBlocks++;
     }
 
-    // Przetwarzanie sekwencyjne blok po bloku
     for (int i = 0; i < numberOfBlocks; i++) {
         int low = m + i * blockSize; 
         int high = low + blockSize - 1;
@@ -43,7 +38,6 @@ int calculate(int n, int m){
             high = n;
         }
 
-        // Wykreślanie wielokrotności tylko wewnątrz obecnego, małego bloku
         for (int j = 2; j * j <= high; j++) {
             if (primeArray[j] == true) {
                 int firstMultiple = (low / j);
@@ -54,7 +48,6 @@ int calculate(int n, int m){
                 }  else {
                     firstMultiple = (firstMultiple * j);
                 }
-                // Zapis lokalny do pamięci (gwarancja hitów w Cache L1/L2)
                 for (int k = firstMultiple; k <= high; k += j) {
                     result[k - m] = false;
                 }

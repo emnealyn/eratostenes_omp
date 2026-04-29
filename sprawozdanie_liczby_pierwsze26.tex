@@ -102,18 +102,21 @@ deterministyczność przebiegu algorytmu i dając zawsze poprawny wynik.
 \\
 
 \begin{lstlisting}[style=mystyle, caption={Kod programu k1.cpp}, label={lst:k1}]
-int main(){
-	int m = 2;
-	int n = 100000000;
+int calculate(int n, int m){
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
 	memset(result, true, (n - m + 1) * sizeof(bool));
+	int prime_counter = 0;
 
 	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
 	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
+	
+	if (m <= 0 && n >= 0) result[0 - m] = false;
+	if (m <= 1 && n >= 1) result[1 - m] = false;
 
 	for (int i = 2; i * i <= n; i++) {
 		for (int j = 2; j * j <= i; j++) {
-			if (primeArray[j] == true && i % j == 0) { primeArray[i] = false; 
+			if (primeArray[j] == true && i % j == 0) { 
+				primeArray[i] = false; 
 				break;
 			}
 		}
@@ -123,9 +126,16 @@ int main(){
 			if (primeArray[j] == true && i % j == 0) {
 				result[i - m] = false;
 				break; 
-			}
+			} 
+		}
+		if(result[i-m] == true){
+			prime_counter++;
 		}
 	}
+	free(result);
+	free(primeArray);
+
+	return prime_counter;
 }
 \end{lstlisting}
 
@@ -166,35 +176,28 @@ przechodząc do mniejszych, co pozwala na lepsze wykorzystanie zasobów niż \te
 co prawda pozwala wybrać dowolny rozmiar paczki, ale wciąż nie jest tak efektywne jak \texttt{guided} w kontekście tego algorytmu.
 \\
 \begin{lstlisting}[style=mystyle, caption={Kod programu k2.cpp}, label={lst:k2}]
-int main(){
-	int m = 2;
-	int n = 100000000;
+int calculate(int n, int m){
+	//...liczenie sita (PrimeArray) jak w kodzie k1
 
-	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
-	memset(result, true, (n - m + 1) * sizeof(bool));
-
-	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
-	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
-
-	for (int i = 2; i * i <= n; i++) {
-		for (int j = 2; j * j <= i; j++) {
-			if (primeArray[j] == true && i % j == 0) { 
-				primeArray[i] = false; break; 
-			}
-		}
-	}
 	#pragma omp parallel
 	{
-	#pragma omp for schedule(guided)
+	#pragma omp for schedule(guided) reduction(+:prime_counter)
 	for (int i = m; i <= n; i++){
 		for (int j = 2; j * j <= i; j++){
 			if (primeArray[j] == true && i % j == 0) { 
 				result[i - m] = false;
 				break;
-				}
 			}
+		}	
+		if(result[i-m] == true){
+			prime_counter++;
 		}
+	}
 	} 
+	free(result);
+	free(primeArray);
+	
+	return prime_counter;
 }
 \end{lstlisting}
 
@@ -221,23 +224,9 @@ podziału pracy.
 
 
 \begin{lstlisting}[style=mystyle, caption={Kod programu k3.cpp}, label={lst:k3}]
-int main(){
-	int m = 2;
-	int n = 100000000;
+int calculate(int n, int m){
+	//...liczenie sita jak we wczesniejszych kodach 
 
-	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
-	memset(result, true, (n - m + 1) * sizeof(bool));
-
-	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
-	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
-
-	for (int i = 2; i*i*i*i <= n; i++) {
-		if (primeArray[i] == true) {
-			for (int j = i * i; j*j <= n; j+=i) {
-				primeArray[j] = false;
-			}
-		}
-	}
 	for (int i = 2; i*i <= n; i++){
 		if (primeArray[i]) {
 			int firstMultiple = (m / i);
@@ -245,12 +234,25 @@ int main(){
 				firstMultiple = i + i;
 			} else if (m % i) { 
 				firstMultiple = (firstMultiple * i) + i;
-			} else {firstMultiple = (firstMultiple * i);}
+			} else {
+				firstMultiple = (firstMultiple * i);
+			}
 			for (int j = firstMultiple; j <= n; j+=i) { 
 				result[j-m] = false;
 			}
 		}
 	}
+	if (m <= 0 && n >= 0) result[0 - m] = false;
+    if (m <= 1 && n >= 1) result[1 - m] = false;
+
+	for (int i = m; i <= n; i++) {
+    	if (result[i - m]) prime_counter++;
+	}
+
+	free(result);
+    free(primeArray);
+	
+	return prime_counter;
 }
 \end{lstlisting}
 
@@ -259,6 +261,45 @@ int main(){
 \textbf{Oznaczenie skrótowe:} SEQ-SIEVE-LL
 \\ \\ 
 TO DO!!!!!
+
+\begin{lstlisting}[style=mystyle, caption={Kod programu k3a.cpp}, label={lst:k3a}]
+int calculate(int n, int m){
+    //...alokacja pamieci i liczenie PrimeArray tak samo jak w kodzie k3
+
+    int blockSize = 65536; 
+    int numberOfBlocks = (n - m) / blockSize;
+    if ((n - m) % blockSize != 0) { 
+        numberOfBlocks++;
+    }
+
+    for (int i = 0; i < numberOfBlocks; i++) {
+        int low = m + i * blockSize; 
+        int high = low + blockSize - 1;
+        if (high > n) {
+            high = n;
+        }
+
+        for (int j = 2; j * j <= high; j++) {
+            if (primeArray[j] == true) {
+                int firstMultiple = (low / j);
+                if (firstMultiple <= 1) {
+                    firstMultiple = j + j;
+                } else if (low % j) {
+                    firstMultiple = (firstMultiple * j) + j;
+                }  else {
+                    firstMultiple = (firstMultiple * j);
+                }
+                for (int k = firstMultiple; k <= high; k += j) {
+                    result[k - m] = false;
+                }
+            }
+        }
+    }
+
+	//...zliczanie prime_count i zwalnianie pamieci jak w kodzie k3
+}
+\end{lstlisting}
+
 \newpage
 \subsection*{K4 - Sito równoległe funkcyjne bez lokalności dostępu do danych.}
 \textbf{Oznaczenie skrótowe:} PAR-SIEVE-NL
@@ -294,25 +335,12 @@ strategii \texttt{guided}, która lepiej się nadaje na odwrotną tendencję tru
 \\
 
 \begin{lstlisting}[style=mystyle, caption={Kod programu k4.cpp}, label={lst:k4}]
-int main(){
-	int m = 2;
-	int n = 100000000;
+int calculate(int n, int m){
+	//...alokacja pamieci i lizcenie PrimeArray jak wczesniej 
 
-	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
-	memset(result, true, (n - m + 1) * sizeof(bool));
-
-	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
-	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
-
-	for (int i = 2; i*i*i*i <= n; i++) {
-		if (primeArray[i] == true) {
-			for (int j = i*i; j*j <= n; j+=i) {
-				primeArray[j] = false;
-			} 
-		}
-	}
+	int limit = sqrt(n);
 	#pragma omp parallel for schedule(dynamic, 1)
-	for (int i = 2; i*i <= n; i++){
+	for (int i = 2; i <= limit; i++){
 		if (primeArray[i]) {
 			int firstMultiple = (m / i);
 			if (firstMultiple <= 1) {
@@ -327,6 +355,8 @@ int main(){
 			}
 		}
 	}
+
+	//zliczanie prime_count i zwalnianie pamieci jak wczesniej
 }
 \end{lstlisting}
 
@@ -340,25 +370,12 @@ to zapobiega wyścigowi, jednak nie rozwiązuje w pełni problemu \textbf{false 
 samych linii chache (tyllko tym razem już nie do tych samych elementów tablicy) ...................
 \\
 \begin{lstlisting}[style=mystyle, caption={Kod programu k4a.cpp}, label={lst:k4a}]
-int main(){
-	int m = 2;
-	int n = 100000000;
+int calculate(int n, int m){
+	//...alokacja pamieci i zliczanie PrimeArray jak wczesniej
 
-	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
-	memset(result, true, (n - m + 1) * sizeof(bool));
-
-	bool* primeArray = (bool*)malloc((sqrt(n) + 1) * sizeof(bool));
-	memset(primeArray, true, (sqrt(n) + 1) * sizeof(bool));
-
-	for (int i = 2; i*i*i*i <= n; i++) {
-		if (primeArray[i] == true) {
-			for (int j = i*i; j*j <= n; j+=i) {
-				primeArray[j] = false;
-			}
-		}
-	}
+	int limit = sqrt(n);
 	#pragma omp parallel for schedule(dynamic, 1)
-	for (int i = 2; i*i <= n; i++){
+	for (int i = 2; i <= limit; i++){
 		if (primeArray[i]) {
 			int firstMultiple = (m / i);
 			if (firstMultiple <= 1) {
@@ -373,6 +390,8 @@ int main(){
 			} 
 		}
 	}
+
+	//zliczanie prime_counter i zwalnianie pamieci jak w k4
 }
 \end{lstlisting}
 
@@ -382,38 +401,49 @@ int main(){
 \textbf{Oznaczenie skrótowe:} PAR-SIEVE-DOM-LL
 \\ \\
 \\
-\textbf{Uzasadnienie wyboru rozmiaru bloku:}
+\textbf{Uzasadnienie wyboru rozmiaru bloku:} 
+Tak jak już zostało napisane w wypadku kodu k3, blok został wyznaczony
+w ramach przeprowadzonego eksperymentu wpływu rozmiarów na prędkość wykonywania kodu. 
 \\ \\
 \textbf{Uzasadnienie wyboru podziału pracy:}
-W tym wypadku została wybrana strategia \texttt{(static, 1)}, dzięki podziałowi
+W tym wypadku została wybrana strategia \texttt{(static)}, dzięki podziałowi
 na bloki, obciążenie czasowe poszczególnych zadań jest wyrównane (nierówność występuje 
-tylko na $\sqrt{j}$). Dzięki temu, nie potrzebujemy dynamicznego mechanizmu przydziału
-zadań, które we wcześniejszych kodach miało nam zagwarantować zrównoważenie. Zrezygnowanie
-ze strategii dynamicznych pozwala nam oszczędzić narzut związany z komunikacją, sprawiając
-że to właśnie strategia static będzie najlepszym wyborem.  
+tylko na $\sqrt{j}$), co sprawia, że nie potrzebujemy użycia metod dynamicznych. Uniknięcie
+strategii dynamicznych pozwala nam uniknąć dodatkowego narzutu komunikacyjnego.
 \\ \\
-BlockSize       | Czas [s]       
-----------------------------------------
-1024            | 19.688758      
-2048            | 10.986393      
-4096            | 6.534279       
-8192            | 3.771997       
-16384           | 2.437061       
-32768           | 2.028057       
-65536           | 1.635358       
-131072          | 1.698051       
-262144          | 1.734325       
-524288          | 1.703340       
-1048576         | 1.977222       
-2097152         | 2.657300       
-4194304         | 5.511456       
-8388608         | 8.203307       
-16777216        | 8.677070       
-33554432        | 8.995285       
-67108864        | 9.639266       
-134217728       | 9.974622       
-268435456       | 12.557786      
-536870912       | 17.887813  
+
+\begin{lstlisting}[style=mystyle, caption={Kod programu k5.cpp}, label={lst:k5}]
+int calculate(m, n){
+	//...alokacja pamieci i liczenie PrimeArray jak wczesniej
+
+	int blockSize = 65536; 
+	int numberOfBlocks = (n - m) / blockSize + ((n - m) % blockSize != 0);
+
+	#pragma omp parallel for schedule(static)
+	for (int i = 0; i < numberOfBlocks; i++) {
+		int low = m + i * blockSize; 
+		int high = low + blockSize - 1;
+		if (high > n) high = n;
+
+		memset(&result[low - m], true, (high - low + 1) * sizeof(bool));
+
+		for (int j = 2; j * j <= high; j++) {
+			if (primeArray[j]) {
+				int firstMultiple = (low / j) * j;
+				if (firstMultiple < low) firstMultiple += j;
+				if (firstMultiple == j) firstMultiple += j; 
+
+				for (int k = firstMultiple; k <= high; k += j) {
+					result[k - m] = false;
+				}
+			}
+		}
+	}
+
+	//zliczanie prime_counter i zwalnianie pamieci jak wczesniej
+}
+\end{lstlisting}
+
 
 \newpage
 \section{Prezentacja wyników i umówienie przebiegu eksperymentu.}
