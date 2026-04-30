@@ -5,8 +5,10 @@
 \usepackage{babel}
 \babelprovide[import, main]{polish}
 \usepackage[a4paper, margin=1.5cm]{geometry}
+\usepackage{graphicx}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{graphicx}
 
 \lstdefinestyle{mystyle}{
     basicstyle=\ttfamily\small,
@@ -446,8 +448,128 @@ int calculate(m, n){
 
 
 \newpage
-\section{Prezentacja wyników i umówienie przebiegu eksperymentu.}
+\section{Prezentacja wyników i omówienie przebiegu eksperymentu.}
+\subsection*{Zasady pracy z oprogramowaniem VTune.}
+\subsection*{Porównanie podstawowych parametrów wywołania dla kodów k1-k5.}
+Porównania zostały wykonane dla kodów przedstawionych w poprzedniej sekcji, z tymi samymi schedulingami
+i rozmiarami bloków na zakresie liczb od 1 do 100 milionów.
+\begin{table}[h!]
+\centering
+\begingroup
+% \resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|}
+\hline
+ & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\hline
+Elapsed Time [s] & 23,750 &  & 0.660 & 0.130 & 0.381 &  &  \\
+\hline
+Prędkość przetwarzania [mln l. pierwszych/s] & 4.210 &  & 14.394 & 35.714 & 15.121 &  &  \\
+\hline
+Instructions retired [mln] & 405,744 &  & 0,515 & 0,777 & 2,179 &  &  \\
+\hline
+Clockticks [bilionów tików] & 105,112 &  & 2,914 & 0,566 & 19,808 & & \\
+\hline
+Effective PCU & 7.7\% & & 4.7\% & 7.1\% & 42.4\% & & \\
+\hline
+\textbf{Badania kodów równoległych} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\hline
+Przyspieszenie względem k3a & - &  & - & - & 0.34\% &  &  \\
+\hline
+Efektywność [Acc/Cores] & - &  & - & - & 0.028 &  &  \\
+\hline
+\end{tabular}%
+% }
+\endgroup
+\caption{Porównanie podstawowych parametrów wywołania dla kodów k1-k5.}
+\end{table}
+\begin{table}[h!]
+\centering
+\begingroup
+% \resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|}
+\hline
+\textbf{Performance Cores} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\hline
+Retiring & 66.0\% & & 1.2\% & 0.0\% & 1.1\% & & \\
+\hline
+Front End Bound & 11.4\% &  & 0.0\% & 3.1\% & 3.6\% &  &  \\
+\hline
+Back End Bound & 3.3\% &  & 100.0\% & 0.0\% & 78.7\% &  &  \\
+\hline
+Memory Bound & 0.2\% &  & 100.0\% & 0.0\% & 67.4\% &  &  \\
+\hline
+Core Bound & 3.1\% &  & 0.0\% & 0.0\% & 11.4\% &  & \\
+\hline
+\textbf{Efficient Cores} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\hline
+Retiring & 0.0\% & & 0.0\% & 0.0\% & 3.0\% & & \\
+\hline
+Front End Bound & 0.0\% &  & 0.0\% & 0.0\% & 1.3\% &  &  \\
+\hline
+Back End Bound & 4.1\% &  & 0.0\% & 0.0\% & 90.8\% &  &  \\
+\hline
+Memory Bound & 0.0\% &  & 0.0\% & 0.0\% & 53.0\% &  &  \\
+\hline
+Core Bound & 4.1\% &  & 0.0\% & 0.0\% & 37.8\% &  & \\
+\hline
+\end{tabular} 
+% }
+\endgroup
+\caption{Wyniki analizy przyczyn ograniczeń wydajności dla kodów k1-k5 z podziałem na Performance i Efficient Cores.}
+\end{table}
+\newpage
+\subsection*{Porównanie działań kodów dla różnych zakresów liczb.}
+W ramach tego eksperymentu zmierzyliśmy Ellapsed Time dla kodów k1-k5 dla trzech
+różnych zakresów liczb: \\<2; max>, <max/2; max> oraz <2; max/2>, gdzie \texttt{max} to 10\textsuperscript{8}.
+\begin{table}[h!]
+\centering
+\begingroup
+% \resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|}
+\hline
+ & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\hline
+<2; max> &  &  & & & &  &  \\
+\hline
+<max/2; max> &  &  & & & &  &  \\
+\hline
+<2; max/2> &  &  & & & &  &  \\
+\hline
 
+\end{tabular}%
+% }
+\endgroup
+\caption{Porównanie prędkości działania dla różnych zakresów liczb w kodach k1-k5.}
+\end{table}
+\subsection*{Badanie wpływu różnych szeregowań dla czasu przetwarzania kodów k2, k4, k4a i k5.}
+\subsection*{Porównanie parametrów przetwarzania kodów k3 i k3a.}
+\subsection*{Wyniki eksperymentu wyznaczania wielkości bloku dla kodów k3a i k5.}
+\newpage
+\subsection*{Eksperyment - zwiększenie zakresu działania kodu k5 do 1 miliarda.}
+W czasie przeprowadzania eksperymentu k5 zauważyliśmy w teście threading niespodziewanie niskie CPU utilization, co skłoniło nas do przeprowadzenia kolejnego eksperymentu. 
+Postanowiliśmy przeprowadzić dodatkowe badanie tym razem dla zakresu liczby zwiększonego o 1 potęgę 10 (więcej już by się nie dało ze względu na ograniczenia pamięciowe).
+Poniżej zamieściliśmy wykresy z porównaniem histogramów CPU utilization dla zakres 1exp8 i 1exp9.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.8\textwidth]{./img/k5_108.png}
+\caption{CPU utilization dla kodu 5 dla zakresu 1exp8.}
+\label{fig:myimage}
+\end{figure}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.8\textwidth]{./img/k5_109.png}
+\caption{CPU utilization dla kodu 5 dla zakresu 1exp9.}
+\label{fig:myimage}
+\end{figure}
+
+Dzięki temu porównaniu widzimy, że kod nie działa źle, czas w stanie 0/1 jest
+stały i jest to czas spędzony w sekcji sekwencyjnej (liczenie małego sita). Jest to dla obu 
+uruchomień około 0.3 sekundy. Zmienia się między nimi zaś czas spędzony w sekcji równoległej 
+(0.158 dla 1exp8 i 0.404 dla 1exp9). Wraz ze zwiększeniem się tego czasu możemy też zaobserwować 
+wzort czasu w którym pracuje wiele wątków (co oznacza, że dobrze dzielą się zadaniami, mimo zwiększenia 
+czasu w części równoległej nie zwiększyła się sumaryczna liczba czasu w stanie 0/1)
 \newpage
 \section{Wnioski.}
 
