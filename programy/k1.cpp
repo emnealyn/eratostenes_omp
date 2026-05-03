@@ -41,17 +41,17 @@ int calculate(int n, int m){
 }
 
 int main(){
-	int m = 0;
+	int m = 2;
 	int n = 1e8;
 	double start_time, stop_time;
 
-	// start_time = omp_get_wtime();
+	start_time = omp_get_wtime();
 	int prime_counter = 0;
 	prime_counter = calculate(n, m);
-	// stop_time = omp_get_wtime();
+	stop_time = omp_get_wtime();
 
 	printf("Liczba liczb pierwszych: %d\n", prime_counter);
-	// printf("Czas trwania obliczen - wallclock %f sekund \n", stop_time-start_time);
+	printf("Czas trwania obliczen - wallclock %f sekund \n", stop_time-start_time);
 
 
 }

@@ -322,25 +322,22 @@ int calculate(int n, int m){
 \textbf{Oznaczenie skrótowe:} PAR-SIEVE-DOM-LL
 \\ \\
 Równoległe sito segmentowe z podziałem domenowym. Każdy wątek przetwarza niezależne bloki danych mieszczące się w cache, co eliminuje \texttt{false sharing} i wyścigi. 
-Zastosowanie \texttt{schedule(static)} minimalizuje narzut synchronizacji przy wyrównanym obciążeniu bloków.
+Choć wydawałoby się, że \texttt{schedule(static)} minimalizuje narzut synchronizacji przy wyrównanym obciążeniu bloków,
+to jednak znacznie lepszy performormance zaobserwowaliśmy przy \texttt{schedule(guided)}.
 \\
 
 \begin{lstlisting}[style=mystyle, caption={Kod programu k5.cpp}, label={lst:k5}]
 int calculate(m, n){
 	//...alokacja pamieci i liczenie PrimeArray jak wczesniej
 
-	int blockSize = 65536; // 64 KB - optymalne dla cache L1/L2
+	int blockSize = 65536; 
 	int numberOfBlocks = (n - m) / blockSize + ((n - m) % blockSize != 0);
 
-	// Glowna petla rownolegla. Schedule(dynamic) najlepiej rozklada obciazenie w sicie segmentowym.
-	#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(guided)
 	for (int i = 0; i < numberOfBlocks; i++) {
 		int low = m + i * blockSize; 
 		int high = low + blockSize - 1;
 		if (high > n) high = n;
-
-		// Rownolegla inicjalizacja fragmentu tablicy - dane trafiaja prosto do cache rdzenia
-		memset(&result[low - m], true, (high - low + 1) * sizeof(bool));
 
 		for (int j = 2; j * j <= high; j++) {
 			if (primeArray[j]) {
@@ -374,21 +371,21 @@ i rozmiarami bloków na zakresie liczb od 1 do 100 milionów.
 \hline
  & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
 \hline
-Elapsed Time [s] & 23,750 &  & 0.660 & 0.130 & 0.381 &  &  \\
+Elapsed Time [s] & 23.750 & 2.394 & 0.660 & 0.130 & 0.381 & 0.296 & 0.060 \\
 \hline
-Prędkość przetwarzania [mln l. pierwszych/s] & 4.210 &  & 14.394 & 35.714 & 15.121 &  &  \\
+Prędkość przetwarzania [mln l. pierwszych/s] & 4.210 & 2.406 & 14.394 & 35.714 & 15.121 & 19.464 & 96.024 \\
 \hline
-Instructions retired [mln] & 405,744 &  & 0,515 & 0,777 & 2,179 &  &  \\
+Instructions retired [mld] & 405,744 & 405,599 & 0,515 & 0,777 & 2,179 & 1,501 & 1,702 \\
 \hline
-Clockticks [bilionów tików] & 105,112 &  & 2,914 & 0,566 & 19,808 & & \\
+Clockticks [miliardów tików] & 105,112 & 166,746 & 2,914 & 0,566 & 19,808 & 14,777 & 1,995 \\
 \hline
-Effective PCU & 7.7\% & & 4.7\% & 7.1\% & 42.4\% & & \\
+Effective PCU & 7.7\% & 68.9\% & 4.7\% & 7.1\% & 42.4\% & 51.5\% & 23.4\% \\
 \hline
 \textbf{Badania kodów równoległych} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
 \hline
-Przyspieszenie względem k3a & - &  & - & - & 0.34\% &  &  \\
+Przyspieszenie względem k3a & - & 0.05 & - & - & 0.34 & 0.43 & 2.17 \\
 \hline
-Efektywność [Acc/Cores] & - &  & - & - & 0.028 &  &  \\
+Efektywność [Acc/Cores] & - & 0.004 & - & - & 0.028 & 0.036 & 0.180 \\
 \hline
 \end{tabular}%
 % }
@@ -403,27 +400,27 @@ Efektywność [Acc/Cores] & - &  & - & - & 0.028 &  &  \\
 \hline
 \textbf{Performance Cores} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
 \hline
-Retiring & 66.0\% & & 1.2\% & 0.0\% & 1.1\% & & \\
+Retiring & 66.0\% & 83.5\% & 1.2\% & 0.0\% & 1.1\% & 4.5\% & 25.0\% \\
 \hline
-Front End Bound & 11.4\% &  & 0.0\% & 3.1\% & 3.6\% &  &  \\
+Front End Bound & 11.4\% & 13.8\% & 0.0\% & 3.1\% & 3.6\% & 20.0\% & 25.0\% \\
 \hline
-Back End Bound & 3.3\% &  & 100.0\% & 0.0\% & 78.7\% &  &  \\
+Back End Bound & 3.3\% & 1.7\% & 100.0\% & 0.0\% & 78.7\% & 58.0\% & 41.7\% \\
 \hline
-Memory Bound & 0.2\% &  & 100.0\% & 0.0\% & 67.4\% &  &  \\
+Memory Bound & 0.2\% & 0.2\% & 100.0\% & 0.0\% & 67.4\% & 42.6\% & 16.7\% \\
 \hline
-Core Bound & 3.1\% &  & 0.0\% & 0.0\% & 11.4\% &  & \\
+Core Bound & 3.1\% & 1.5\% & 0.0\% & 0.0\% & 11.4\% & 15.3\% & 25.0\% \\
 \hline
 \textbf{Efficient Cores} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
 \hline
-Retiring & 0.0\% & & 0.0\% & 0.0\% & 3.0\% & & \\
+Retiring & 0.0\% & 42.3\% & 0.0\% & 0.0\% & 3.0\% & 0.7\% & 0.0\% \\
 \hline
-Front End Bound & 0.0\% &  & 0.0\% & 0.0\% & 1.3\% &  &  \\
+Front End Bound & 0.0\% & 5.0\% & 0.0\% & 0.0\% & 1.3\% & 3.8\% & 0.0\% \\
 \hline
-Back End Bound & 4.1\% &  & 0.0\% & 0.0\% & 90.8\% &  &  \\
+Back End Bound & 4.1\% & 11.5\% & 0.0\% & 0.0\% & 90.8\% & 34.8\% & 97.4\% \\
 \hline
-Memory Bound & 0.0\% &  & 0.0\% & 0.0\% & 53.0\% &  &  \\
+Memory Bound & 0.0\% & 0.2\% & 0.0\% & 0.0\% & 53.0\% & 34.8\% & 18.8\% \\
 \hline
-Core Bound & 4.1\% &  & 0.0\% & 0.0\% & 37.8\% &  & \\
+Core Bound & 4.1\% & 11.3\% & 0.0\% & 0.0\% & 37.8\% & 0.0\% & 78.6\% \\
 \hline
 \end{tabular} 
 % }
@@ -440,13 +437,13 @@ różnych zakresów liczb: \\<2; max>, <max/2; max> oraz <2; max/2>, gdzie \text
 % \resizebox{\textwidth}{!}{%
 \begin{tabular}{|l|c|c|c|c|c|c|c|}
 \hline
- & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\textbf{Zakres liczb} & \textbf{k1} & \textbf{k2} & \textbf{k3} & \textbf{k3a} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
 \hline
-<2; max> &  &  & & & &  &  \\
+<2; max> & 23.750 s & 2.394 s & 0.660 s & 0.130 s & 0.381 s & 0.296 s & 0.060 s \\
 \hline
-<max/2; max> &  &  & & & &  &  \\
+<max/2; max> & 16.671 s & 3.852 s & 0.303 s & 0.069 s & 0.279 s & 0.122 s & 0.038 s \\
 \hline
-<2; max/2> &  &  & & & &  &  \\
+<2; max/2> & 7.116 s & 2.450 s & 0.282 s & 0.065 s & 0.225 s & 0.117 s & 0.050 s \\
 \hline
 
 \end{tabular}%
@@ -455,34 +452,66 @@ różnych zakresów liczb: \\<2; max>, <max/2; max> oraz <2; max/2>, gdzie \text
 \caption{Porównanie prędkości działania dla różnych zakresów liczb w kodach k1-k5.}
 \end{table}
 \subsection*{Badanie wpływu różnych szeregowań dla czasu przetwarzania kodów k2, k4, k4a i k5.}
+
+\begin{table}[h!]
+\centering
+\begingroup
+% \resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Schedule} & \textbf{k2} & \textbf{k4} & \textbf{k4a} & \textbf{k5} \\
+\hline
+static & 6.339 s & 0.551 s & 0.541 s & 0.151 s \\
+\hline
+dynamic & 2.475 s & 0.296 s & 0.381 s & 0.080 s \\
+\hline
+guided &  2.394 s & 0.558 s & 0.727 s & 0.060 s \\
+\hline
+
+\end{tabular}%
+% }
+\endgroup
+\caption{Wpływy szeregowań na czas przetwarzania kodów równoległych.}
+\end{table}
+
 \subsection*{Porównanie parametrów przetwarzania kodów k3 i k3a.}
 \subsection*{Wyniki eksperymentu wyznaczania wielkości bloku dla kodów k3a i k5.}
-\newpage
-\subsection*{Eksperyment - zwiększenie zakresu działania kodu k5 do 1 miliarda.}
-W czasie przeprowadzania eksperymentu k5 zauważyliśmy w teście threading niespodziewanie niskie CPU utilization, co skłoniło nas do przeprowadzenia kolejnego eksperymentu. 
-Postanowiliśmy przeprowadzić dodatkowe badanie tym razem dla zakresu liczby zwiększonego o 1 potęgę 10 (więcej już by się nie dało ze względu na ograniczenia pamięciowe).
-Poniżej zamieściliśmy wykresy z porównaniem histogramów CPU utilization dla zakres 1exp8 i 1exp9.
 
-\begin{figure}[h!]
+Aby wyznaczyć optymalną wielkość bloku dla kodów k3a i k5 napisaliśmy eksperyment,
+który wywoływał te kody dla standardowego zakres <2; max> z różnymi rozmiarami bloków
+od 16B do ilości liczb w zakresie z krokiem x2. Poniżej znajduje się część tabeli wynikowej,
+w której znajduje się nasze poszukiwane optimum (czyli w naszym przypadku 65536 B tj 64 kB).
+
+\begin{table}[h!]
 \centering
-\includegraphics[width=0.8\textwidth]{./img/k5_108.png}
-\caption{CPU utilization dla kodu 5 dla zakresu 1exp8.}
-\label{fig:myimage}
-\end{figure}
+\begingroup
+% \resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Blocksize} & \textbf{k3a} & \textbf{k5} \\
+\hline
+8192 & 0.229 s & 0.040 s \\
+\hline
+16384 & 0.145 s & 0.036 s \\
+\hline
+32768 & 0.112 s & 0.030 s \\
+\hline
+65536 & 0.107 s & 0.030 s \\
+\hline
+131072 & 0.121 s & 0.039 s \\
+\hline
+262144 & 0.126 s & 0.035 s \\
+\hline
+524288 & 0.128 s & 0.040 s \\
+\hline
 
-\begin{figure}[h!]
-\centering
-\includegraphics[width=0.8\textwidth]{./img/k5_109.png}
-\caption{CPU utilization dla kodu 5 dla zakresu 1exp9.}
-\label{fig:myimage}
-\end{figure}
 
-Dzięki temu porównaniu widzimy, że kod nie działa źle, czas w stanie 0/1 jest
-stały i jest to czas spędzony w sekcji sekwencyjnej (liczenie małego sita). Jest to dla obu 
-uruchomień około 0.3 sekundy. Zmienia się między nimi zaś czas spędzony w sekcji równoległej 
-(0.158 dla 1exp8 i 0.404 dla 1exp9). Wraz ze zwiększeniem się tego czasu możemy też zaobserwować 
-wzort czasu w którym pracuje wiele wątków (co oznacza, że dobrze dzielą się zadaniami, mimo zwiększenia 
-czasu w części równoległej nie zwiększyła się sumaryczna liczba czasu w stanie 0/1)
+\end{tabular}%
+% }
+\endgroup
+\caption{Wpływ rozmiaru bloku na czas przetwarzania kodów k3a i k5.}
+\end{table}
+
 \newpage
 \section{Wnioski.}
 

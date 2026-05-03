@@ -45,8 +45,8 @@ int calculate(int n, int m){
 }
 
 int main(){
-	int m = 0;
-	int n = 1e9;
+	int m = 2;
+	int n = 1e8;
 	double start_time, stop_time;
 
 	// start_time = omp_get_wtime();
