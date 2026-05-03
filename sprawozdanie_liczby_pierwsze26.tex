@@ -4,6 +4,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{babel}
 \babelprovide[import, main]{polish}
+\usepackage{amsmath}
 \usepackage[a4paper, margin=1.5cm]{geometry}
 \usepackage{graphicx}
 \usepackage{listings}
@@ -55,7 +56,7 @@ Model procesora & 17th Gen Intel(R) Core(TM) i7-12700F \\
 \hline
 Liczba procesorów fizycznych & 1 \\
 \hline
-Liczba rdzeni & 12 \\
+Liczba rdzeni & 12 (8 Performance, 4 Efficient)\\
 \hline
 Liczba procesorów logicznych & 20 \\
 \hline
@@ -64,6 +65,10 @@ Pamięć cache L1 & 1,0 MB \\
 Pamięć cache L2 & 12,0 MB \\
 \hline
 Pamięć cache L3 & 25,0 MB \\
+\hline
+L1 data cache dla EFfCore & 32 kB \\
+\hline
+L1 data cache dla PerfCore & 48 kB \\
 \hline
 System operacyjny & Windows 10 \\
 \hline
@@ -214,7 +219,7 @@ Przetwarzanie blokowe znacząco przyspiesza operacje zapisu do tablicy wyników 
 int calculate(int n, int m){
     //...alokacja pamieci i liczenie PrimeArray tak samo jak w kodzie k3
 
-    int blockSize = 65536; 
+    int blockSize = 32768; 
     int numberOfBlocks = (n - m) / blockSize;
     if ((n - m) % blockSize != 0) { 
         numberOfBlocks++;
@@ -330,7 +335,7 @@ to jednak znacznie lepszy performormance zaobserwowaliśmy przy \texttt{schedule
 int calculate(m, n){
 	//...alokacja pamieci i liczenie PrimeArray jak wczesniej
 
-	int blockSize = 65536; 
+	int blockSize = 32768; 
 	int numberOfBlocks = (n - m) / blockSize + ((n - m) % blockSize != 0);
 
 	#pragma omp parallel for schedule(guided)
@@ -360,6 +365,19 @@ int calculate(m, n){
 \newpage
 \section{Prezentacja wyników i omówienie przebiegu eksperymentu.}
 \subsection*{Zasady pracy z oprogramowaniem VTune.}
+
+Intel VTune Profiler to narzędzie do profilowania wydajności aplikacji na platformach Intel. 
+W ramach przeprowadzonego eksperymentu wykorzystano tryb \textbf{Microarchitecture Exploration}, 
+który umożliwia szczegółową analizę wykorzystania mikroarchitektury procesora poprzez zbieranie 
+zdarzeń sprzętowych (hardware performance counters). Narzędzie mierzy m.in. liczbę wycofanych 
+instrukcji (\textit{Instructions Retired}), liczbę taktów procesora (\textit{Clockticks}) 
+oraz klasyfikuje przyczyny nieefektywności przetwarzania. Skorzystano również dla kodów 
+równoległych z testu \textbf{Threading}, który pozwala na analizę efektywnego wykorzystania CPU oraz
+podziału czasu pracy między sekcję równoległą a sekwencyjną, oraz testu \textbf{Hotspots}, który 
+daje informacje o czasie przetwarzania CPU i jego podziale między czas efektywny a czasy oczekiwania.
+W ramach analizy kodów k3 i k3a został też przeprowadzony test \textbf{Memory Access}, który pozwolił
+na analizę dostępów do pamięci.
+
 \subsection*{Porównanie podstawowych parametrów wywołania dla kodów k1-k5.}
 Porównania zostały wykonane dla kodów przedstawionych w poprzedniej sekcji, z tymi samymi schedulingami
 i rozmiarami bloków na zakresie liczb od 1 do 100 milionów.
@@ -446,11 +464,25 @@ różnych zakresów liczb: \\<2; max>, <max/2; max> oraz <2; max/2>, gdzie \text
 <2; max/2> & 7.116 s & 2.450 s & 0.282 s & 0.065 s & 0.225 s & 0.117 s & 0.050 s \\
 \hline
 
+
 \end{tabular}%
 % }
 \endgroup
 \caption{Porównanie prędkości działania dla różnych zakresów liczb w kodach k1-k5.}
 \end{table}
+\\
+Porównanie zakresów  ujawnia różne zachowania algorytmów w zależności od położenia zakresu.
+Dla \textbf{k1 i k2} (dzielenie próbne) czas silnie zależy od gęstości liczb pierwszych 
+i wartości sprawdzanych liczb. Zakres $\langle \text{max}/2; \text{max} \rangle$ trwa 
+dłużej niż $\langle 2; \text{max}/2 \rangle$, ponieważ 
+duże liczby wymagają sprawdzenia więcej dzielników (do $\sqrt{i}$).
+Dla \textbf{k3, k3a, k4, k4a, k5} (sito) czas nie zależy od wartości sprawdzanych 
+liczb, lecz przede wszystkim od \textbf{rozmiaru zakresu}. Złożoność segmentowego sita 
+Eratostenesa dla zakresu $\langle m, n \rangle$ wynosi $O(L \cdot \log \log n)$, 
+gdzie $L = n - m$ to rozmiar zakresu, a $n$ to górna granica. Ponieważ $\log \log n$ 
+zmienia się bardzo wolno i jest niemal identyczne dla obu półzakresów, czas przetwarzania jest w przybliżeniu proporcjonalny do $L$ — 
+stąd oba półzakresy mają zbliżone czasy, mniejsze niż pełny zakres.
+
 \subsection*{Badanie wpływu różnych szeregowań dla czasu przetwarzania kodów k2, k4, k4a i k5.}
 
 \begin{table}[h!]
@@ -473,15 +505,61 @@ guided &  2.394 s & 0.558 s & 0.727 s & 0.060 s \\
 \endgroup
 \caption{Wpływy szeregowań na czas przetwarzania kodów równoległych.}
 \end{table}
-
+\newpage
 \subsection*{Porównanie parametrów przetwarzania kodów k3 i k3a.}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k3.png}
+    \caption{Wynik testu Memory Access BandwitdhHistogram dla kodu k3.}
+    \label{fig:k3treading109}
+\end{figure} 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k3a.png}
+    \caption{Wynik testu Memory Access BandwitdhHistogram dla kodu k3a.}
+    \label{fig:k3atreading109}
+\end{figure}
+
+\begin{table}[h!]
+\centering
+\begingroup
+% \resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|}
+\hline
+ & \textbf{k3} & \textbf{k3a} \\
+\hline
+
+PC L1 Bound & 0.0\% & 0.0\% \\
+\hline
+PC L2 Bound & 1.1\% & 0.0\% \\
+\hline
+PC L3 Bound & 1.5\% & 0.0\% \\
+\hline
+Store Bound & 82.6\% & 0.0\% \\
+\hline
+EC L1 Bound & 0.0\% & 1.6\% \\
+\hline
+EC L2 Bound & 0.0\% & 0.0\% \\
+\hline
+EC L3 Bound & 0.0\% & 0.0\% \\
+\hline
+
+\end{tabular}%
+% }
+\endgroup
+\caption{Porównanie czasów oczekiwania Memory Bound dla kodów k3 i k3a}
+\end{table}
+
+\newpage
+
 \subsection*{Wyniki eksperymentu wyznaczania wielkości bloku dla kodów k3a i k5.}
 
 Aby wyznaczyć optymalną wielkość bloku dla kodów k3a i k5 napisaliśmy eksperyment,
 który wywoływał te kody dla standardowego zakres <2; max> z różnymi rozmiarami bloków
 od 16B do ilości liczb w zakresie z krokiem x2. Poniżej znajduje się część tabeli wynikowej,
-w której znajduje się nasze poszukiwane optimum (czyli w naszym przypadku 65536 B tj 64 kB).
-
+w której na środku znajduje się nasze poszukiwane optimum.
+\\
 \begin{table}[h!]
 \centering
 \begingroup
@@ -490,13 +568,16 @@ w której znajduje się nasze poszukiwane optimum (czyli w naszym przypadku 6553
 \hline
 \textbf{Blocksize} & \textbf{k3a} & \textbf{k5} \\
 \hline
+
+4096 & 0.382 s & 0.061 s \\
+\hline
 8192 & 0.229 s & 0.040 s \\
 \hline
 16384 & 0.145 s & 0.036 s \\
 \hline
-32768 & 0.112 s & 0.030 s \\
+32768 & 0.107 s & 0.030 s \\
 \hline
-65536 & 0.107 s & 0.030 s \\
+65536 & 0.120 s & 0.031 s \\
 \hline
 131072 & 0.121 s & 0.039 s \\
 \hline
@@ -505,12 +586,50 @@ w której znajduje się nasze poszukiwane optimum (czyli w naszym przypadku 6553
 524288 & 0.128 s & 0.040 s \\
 \hline
 
-
 \end{tabular}%
 % }
 \endgroup
 \caption{Wpływ rozmiaru bloku na czas przetwarzania kodów k3a i k5.}
 \end{table}
+\\
+Optymalny rozmiar bloku wynosi \textbf{32768 elementów} (32~kB) dla obu kodów 
+k3a i k5. Jest to wynik, którego możemy się spodziewać po sprawdzeniu parametrów
+procesora: choć posiada on ogółem 1 MB na pamięci L1, podzielona jest ona między 12 rdzeni,
+z czego 8 to rdzenie Performance z 48 kB cache L1, a pozostałe 4 to rdzenie Efficient z 32 kB
+cache L1. Z tych względów rozmiar bloku 32 kB będzie optymalny, będzie mieścił się w cache L1 
+obu typów rdzeni, jednocześnie będąc na tyle dużym aby zredukować niepotrzebny narzut związany z pobieraniem
+mniejszych ale większej liczby bloków z pamięci głównej do cache. Większy blok nie mieściłby się już zaś w L1, zmuszając
+do przenoszenia danych do wolniejszej pamięci L2, co ponownie zaczyna skutkować spadkiem wydajności.
+
+\newpage
+\subsection*{Dodatkowy eksperyment: zwiększenia zakresu liczb do 1 miliarda.}
+W czasie przetwarzania kodów równoległych w standardowym zakresie <2;100 mln> zauważyliśmy,
+że czasy przetwarzania są bardzo krótkie, co utrudnia dokładną analizę wydajności.
+Dlatego zdecydowaliśmy się na dodatkowy eksperyment, w którym zwiększyliśmy zakres liczb do 1 miliarda.
+Poniżej przedstawiamy porównania wyników testu threading dla kodu równoległego k4.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k4108.png}
+    \caption{Wynik testu threading k4 dla zakresu <2; 100 mln>.}
+    \label{fig:k4treading108}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k4109.png}
+    \caption{Wynik testu threading k4 dla zakresu <2; 1 mld>.}
+    \label{fig:k4treading109}
+\end{figure}
+
+Pierwsze co rzuca się przy analizie wyżej przedstawionych wykresów to 
+znaczny wzrost efektywności CPU z 26.3\% na 63.7\% po zwiększeniu zakresu. 
+Czas spędzony na pracy 0 lub 1 wątku pozostaje w obu wypadkach taki sam: w sumie około 0.6 s.
+Cały dodatkowy czas wykonania to czas spędzony w sekcji równoległej, który wzrósł z 0.267 s na 
+4.871 s. Z wykresu widać że najwięcej czasu kod wykonuje jednocześnie 14 wątków, a nie 1 jak 
+w przypadku rysunku 1. Podobne wyniki zaobserwowaliśmy dla reszty równoległych kodów. Widzimy więc,
+że niska wydajność kodów nie wynika z ich złej implementacji, a zbyt małego zakresu liczb w teście, 
+który nie pozwalał na efektywne wykorzystanie potencjału równoległego procesora.
 
 \newpage
 \section{Wnioski.}
