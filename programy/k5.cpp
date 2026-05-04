@@ -4,11 +4,7 @@
 #include <cstdio>
 #include <omp.h>
 
-int main(){
-	int m = 2;
-	int n = 1e9;
-	double start_time, stop_time;
-
+int calculate(int n, int m){
 	int prime_counter = 0;
 
 	bool* result = (bool*)malloc((n - m + 1) * sizeof(bool));
@@ -25,7 +21,7 @@ int main(){
 		}
 	}
 
-	int blockSize = 65536;
+	int blockSize = 32768;
 	int numberOfBlocks = (n - m) / blockSize + ((n - m) % blockSize != 0);
 
 	#pragma omp parallel for schedule(guided)
@@ -63,5 +59,15 @@ int main(){
 
 	free(result);
 	free(primeArray);
+	return 0;
+}
+
+int main(){
+	int m = 2;
+	int n = 1e8;
+
+	int prime_counter = 0;
+	prime_counter = calculate(n, m);
+	printf("Liczba liczb pierwszych: %d\n", prime_counter);
 	return 0;
 }

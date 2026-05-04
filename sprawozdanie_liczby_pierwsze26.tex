@@ -375,7 +375,8 @@ zdarzeń sprzętowych (hardware performance counters). Skorzystano również dla
 równoległych z testu \textbf{Threading}, który pozwala na analizę efektywnego wykorzystania CPU oraz
 podziału czasu pracy między sekcję równoległą a sekwencyjną.
 W ramach analizy wariantów kodów k3, k3a, k4 i k4a został też przeprowadzony test \textbf{Memory Access}, który pozwolił
-na analizę dostępów do pamięci.
+na analizę dostępów do pamięci. Wykorzystano również test \textbf{Hotspots} do analizy wąskich gardeł 
+i efektywnego wykorzystania CPU.
 
 \subsection*{Porównanie podstawowych parametrów wywołania dla kodów k1-k5.}
 Porównania zostały wykonane dla kodów przedstawionych w poprzedniej sekcji, z tymi samymi schedulingami
@@ -698,11 +699,34 @@ cache L1. Z tych względów rozmiar bloku 32 kB będzie optymalny, będzie mieś
 obu typów rdzeni, jednocześnie będąc na tyle dużym aby zredukować niepotrzebny narzut związany z pobieraniem
 mniejszych ale większej liczby bloków z pamięci głównej do cache. Większy blok nie mieściłby się już zaś w L1, zmuszając
 do przenoszenia danych do wolniejszej pamięci L2, co ponownie zaczyna skutkować spadkiem wydajności.
+\newpage
+\subsection*{Efektywne wykorzystanie CPU dla kodów równoległych.}
+W ramach tego eksperymentu przeprowadzono test \textbf{Hotspots} dla kodów k2, k4a i k5.
+Wyniki przedstawiono na Rysunkach~3,4 i 5.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k2hs.png}
+    \caption{Wynik testu hotspots k2 dla zakresu <2; 100 mln>.}
+    \label{fig:k2hotspots}
+\end{figure}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k4ahs.png}
+    \caption{Wynik testu hotspots k4a dla zakresu <2; 100 mln>.}
+    \label{fig:k4ahotspots}
+\end{figure}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{img/k5hs.png}
+    \caption{Wynik testu hotspots k5 dla zakresu <2; 100 mln>.}
+    \label{fig:k5hotspots}
+\end{figure}
 
 \newpage
 \subsection*{Dodatkowy eksperyment: zwiększenia zakresu liczb do 1 miliarda.}
 W czasie przetwarzania kodów równoległych w standardowym zakresie <2;100 mln> zauważyliśmy,
-że czasy przetwarzania są bardzo krótkie, co utrudnia dokładną analizę wydajności.
+że czasy przetwarzania są bardzo krótkie, co utrudnia dokładną analizę wydajności. Wykresy z sekcji wcześniej
+też nie wyglądały na zgodne z naszymi oczekiwaniami.
 Dlatego zdecydowaliśmy się na dodatkowy eksperyment, w którym zwiększyliśmy zakres liczb do 1 miliarda.
 Poniżej przedstawiamy porównania wyników testu \textbf{Threading} dla kodu równoległego k4.
 
@@ -728,6 +752,7 @@ Cały dodatkowy czas wykonania to czas spędzony w sekcji równoległej, który 
 w przypadku rysunku 1. Podobne wyniki zaobserwowaliśmy dla reszty równoległych kodów. Widzimy więc,
 że niska wydajność kodów nie wynika z ich złej implementacji, a zbyt małego zakresu liczb w teście, 
 który nie pozwalał na efektywne wykorzystanie potencjału równoległego procesora.
+
 
 \newpage
 \section{Wnioski.}

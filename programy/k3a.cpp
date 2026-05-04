@@ -25,7 +25,7 @@ int calculate(int n, int m){
 		}
 	}
 
-    int blockSize = 65536; 
+    int blockSize = 32768; 
     int numberOfBlocks = (n - m) / blockSize;
     if ((n - m) % blockSize != 0) { 
         numberOfBlocks++;
