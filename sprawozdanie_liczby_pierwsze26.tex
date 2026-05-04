@@ -12,6 +12,8 @@
 \usepackage{graphicx}
 
 \lstdefinestyle{mystyle}{
+	numbers=left,
+    numberstyle=\tiny\color{gray},
     basicstyle=\ttfamily\small,
     frame=single,
     breaklines=true,
@@ -730,41 +732,93 @@ który nie pozwalał na efektywne wykorzystanie potencjału równoległego proce
 \newpage
 \section{Wnioski.}
 
-Na podstawie przeprowadzonych eksperymentów oraz szczegółowej analizy profilowania w narzędziu Intel VTune, sformułowano następujące wnioski:
+Na podstawie zebranych danych analitycznych z oprogramowania Intel VTune Profiler oraz pomiarów czasu wykonania (Elapsed Time),
+ przeprowadzono wielokryterialną ocenę zaproponowanych implementacji.
 
+\subsection{Porównanie jakości i prędkości przetwarzania w badanych podejściach}
+Jakość rozwiązań, mierzona jako stosunek wielkości prędkości przetwarzania (wyrażonej w milionach sprawdzonych liczb na sekundę),
+ ukazuje gigantyczną przepaść między rozwiązaniami naiwnymi a zoptymalizowanymi. 
+
+\begin{itemize}
+    \item \textbf{Ewolucja algorytmiczna (k1 vs k3):} Zmiana samego podejścia matematycznego z dzielenia próbnego (\textbf{k1}) na klasyczne Sito Eratostenesa (\textbf{k3}),
+	 nawet bez optymalizacji pamięciowej, doprowadziła do skrócenia czasu przetwarzania z 23,750~s do 0,660~s. Oznacza to, że metoda oparta na wykreślaniu wielokrotności jest
+	  \textbf{36 razy szybsza} od metody opartej na dzieleniu. 
+    \item \textbf{Wpływ lokalności danych (k3 vs k3a):} Porównanie wariantów sekwencyjnych sita ukazuje fundamentalne znaczenie dostępu do pamięci. Segmentacja tablicy na bloki 
+	w kodzie \textbf{k3a} (Listing \ref{lst:k3a}) pozwoliła na osiągnięcie prędkości 35,714 mln l./s wobec 14,394 mln l./s w \textbf{k3}. Przetwarzanie w wariancie \textbf{k3a} 
+	trwało \textbf{5,07 raza krócej} wyłącznie dzięki dopasowaniu rozmiaru przetwarzanych danych do rozmiaru pamięci podręcznej, bez jakiejkolwiek zmiany złożoności obliczeniowej.
+    \item \textbf{Wpływ zrównoleglenia (k3a vs k5):} Wprowadzenie wielowątkowości do zoptymalizowanego algorytmu sekwencyjnego (\textbf{k3a} $\rightarrow$ \textbf{k5}) zwiększyło
+	 prędkość przetwarzania o około \textbf{168\%} (z 35,714 do 96,024 mln l./s), redukując czas z 0,130~s do zaledwie 0,060~s (\textbf{2,16 raza krócej}).
+\end{itemize}
+
+\subsection{Efektywność wykorzystania struktur wewnętrznych procesora i analiza wąskich gardeł}
+Użyty w badaniach procesor Intel Core i7-12700F posiada architekturę hybrydową, oferując 8 rdzeni typu Performance (P-Core, 48~kB L1 Data Cache) oraz 4 rdzenie typu Efficient
+ (E-Core, 32~kB L1 Data Cache). Analiza profilowania VTune (Tabele 4, 6 i 7) ukazuje, jak poszczególne kody radzą sobie z tą strukturą:
+
+\begin{itemize}
+    \item \textbf{Krytyczne wąskie gardło pamięci (Memory Bound) w kodzie k3:} Jak wynika z Tablicy 3, kod \textbf{k3} na rdzeniach P-Core wykazuje 100\% ograniczeń typu \textit{Back-End Bound},
+	 z czego równe 100\% to \textit{Memory Bound}. Tablica 6 precyzuje, że aż \textbf{82,6\% cykli to oczekiwanie na bufor zapisu (Store Bound)}. Jest to bezpośrednia konsekwencja linii 15 w 
+	 kodzie \textbf{k3} (\texttt{result[j-m] = false;}), gdzie skok do pamięci o wartości $i$ w tablicy o rozmiarze 100 mln elementów powoduje ciągłe chybienia (cache misses) w
+	  pamięciach L1, L2 i L3, zmuszając procesor do bezpośredniego zapisu do wolnej pamięci RAM.
+    \item \textbf{Rozwiązanie problemu w kodzie k5:} Wariant domenowy z lokalnością danych (Listing \ref{lst:k5}) idealnie utylizuje sprzęt. Zastosowanie bloku o rozmiarze 32768 elementów (32~kB) 
+	sprawia, że cały aktywny segment tablicy \texttt{result} mieści się w najmniejszej pamięci podręcznej układu – L1 Data Cache rdzeni E-Core (32~kB). Dzięki temu, parametry \textit{Memory Bound} 
+	dla \textbf{k5} spadły do zaledwie \textbf{16,7\%} (P-Cores) i \textbf{18,8\%} (E-Cores). Procesor zamiast czekać na dane, mógł skupić się na obliczeniach (\textit{Retiring} na poziomie 25\%).
+	 Zwiększenie rozmiaru bloku (eksperyment w Tabeli 8) ponad ten próg np. do 131072 (128~kB) powoduje spadek wydajności i wydłużenie czasu pracy o blisko \textbf{30\%} (z 0,030~s do 0,039~s),
+	  gdyż blok wypada z najszybszej pamięci L1.
+    \item \textbf{Próba usunięcia redundancji w kodach k4 i k4a:} W kodzie \textbf{k4} wiele wątków nieustannie nadpisuje te same komórki pamięci wartością \texttt{false} 
+	(tzw. \textit{false sharing}). Dodanie warunku \texttt{if (result[j-m])} w kodzie \textbf{k4a} miało na celu redukcję zapisów. Tablica 7 udowadnia, że operacja ta zmniejszyła 
+	\textit{P-Core Store Bound} z \textbf{72,3\% do zaledwie 0,3\%}, redukując liczbę zapisów (Stores) o \textbf{35,6\%}. Niestety, operacja warunkowa wymagała drastycznego wzrostu 
+	liczby odczytów (Loads) z 94,9 mln do 389,7 mln (wzrost o \textbf{310\%}). W efekcie kod \textbf{k4a} przetwarza dane \textbf{1,28 raza szybciej} niż \textbf{k4}, ale wciąż jest 
+	dławiony przez limity przepustowości pamięci na wszystkich poziomach (L1, L2, L3).
+\end{itemize}
+
+\subsection{Ocena jakości zrównoleglenia i skalowalności}
+W celu oceny zrównoleglenia przeanalizowano parametry przyspieszenia oraz efektywności dla rdzeni fizycznych (Tablica 2).
+\begin{itemize}
+    \item \textbf{Przyspieszenie i efektywność:} Dla optymalnego wariantu \textbf{k5}, przyspieszenie względem najlepszego kodu sekwencyjnego (\textbf{k3a}) 
+	wynosi \textbf{2,17}. Biorąc pod uwagę użycie 12 rdzeni fizycznych, efektywność wynosi \textbf{0,18} (18\%). Jest to wartość relatywnie niska, sugerująca, 
+	że przeważająca część zasobów pozostaje niewykorzystana (współczynnik \textit{Effective CPU} wynosi zaledwie 23,4\%).
+    \item \textbf{Przyczyny niskiej efektywności i eksperyment ze skalowalnością:} Niska utylizacja nie jest wynikiem błędów w architekturze kodu \textbf{k5},
+	lecz narzutu środowiska uruchomieniowego (tworzenie i synchronizacja wątków OpenMP) na zbyt małej instancji problemu. Czas wykonania 0,060~s jest tak krótki, 
+	że narzut administracyjny przewyższa czas obliczeń użytecznych. Eksperyment z zakresem powiększonym 10-krotnie (do 1 mld, Rysunki 3 i 4) dobitnie to udowadnia:
+	 współczynnik \textit{Effective CPU} wzrasta tam drastycznie z 26,3\% do \textbf{63,7\%}. Oznacza to, że efektywność zrównoleglenia wariantu domenowego skaluje 
+	 się silnie i pozytywnie wraz ze wzrostem wolumenu danych poddawanych analizie.
+\end{itemize}
+
+\subsection{Określenie najlepszego i najgorszego podejścia}
 \begin{enumerate}
-    \item \textbf{Porównanie jakości i wydajności rozwiązań:} 
-    Najlepszym rozwiązaniem pod względem prędkości przetwarzania okazał się wariant \textbf{k5} (równoległe sito domenowe z blokowaniem), osiągając czas 0,060~s dla instancji $10^8$. Jest on ponad \textbf{395 razy szybszy} od najgorszego wariantu \textbf{k1} (23,750~s). Metody oparte na sicie Eratostenesa (k3-k5) deklasują metody dzielenia próbnego (k1-k2) ze względu na znacznie niższą złożoność obliczeniową i zastąpienie kosztownych operacji modulo prostym dodawaniem i adresowaniem pamięci.
-
-    \item \textbf{Wykorzystanie struktur procesora i eliminacja wąskich gardeł:}
-    \begin{itemize}
-        \item \textbf{Lokalność danych (k3 vs k3a):} Wariant k3 jest drastycznie ograniczony przez przepełnienie buforów zapisu (\textbf{82,6\% Store Bound}, Tablica 6) z powodu skokowego dostępu do pamięci w pełnym zakresie. Zastosowanie blokowania w k3a pozwoliło na utrzymanie danych w cache L1, co całkowicie wyeliminowało to wąskie gardło i skróciło czas obliczeń ponad 5-krotnie.
-        \item \textbf{Redukcja redundancji zapisów (k4 vs k4a):} Wprowadzenie warunku \texttt{if (result[j-m])} w k4a pozwoliło zredukować \texttt{Store Bound} z 72,3\% do 0,3\% (Tablica 7). Choć poprawiło to czas wykonania, metoda ta wciąż ustępuje k5, ponieważ brak blokowania domenowego powoduje wysokie opóźnienia na magistrali pamięci (\texttt{Memory Bound}).
-    \end{itemize}
-
-    \item \textbf{Analiza architektury hybrydowej (Performance i Efficient Cores):}
-    Zastosowany procesor i7-12700F posiada niejednorodną strukturę (8 rdzeni P i 4 rdzenie E), co niesie za sobą konkretne konsekwencje dla wydajności:
-    \begin{itemize}
-        \item \textbf{Konsekwencje wydajnościowe:} Rdzenie Performance są znacznie efektywniejsze – w teście k2 osiągają wskaźnik \texttt{Retiring} na poziomie 83,5\%, podczas gdy rdzenie Efficient jedynie 42,3\% (Tablica 4). Oznacza to, że rdzenie P wykonują dwa razy więcej użytecznej pracy w tym samym czasie.
-        \item \textbf{Problem Load Imbalance:} Różna moc obliczeniowa rdzeni sprawia, że przy domyślnym szeregowaniu \texttt{static} szybsze rdzenie P kończą pracę wcześniej i bezczynnie czekają na rdzenie E. Rozwiązaniem okazało się stosowanie \texttt{schedule(guided)} lub \texttt{dynamic}, które pozwalają na dynamiczne przydzielanie zadań w miarę zwalniania się zasobów, co pomaga "ukryć" mniejszą wydajność rdzeni E.
-        \item \textbf{Ograniczenia Cache L1:} Rdzenie P mają 48~kB L1, natomiast rdzenie E tylko 32~kB. Eksperyment wykazujący optimum bloku przy \textbf{32~kB} (Tablica 8) potwierdza, że w architekturze hybrydowej należy optymalizować kod pod "najsłabsze ogniwo" – stąd wybór bloku 32~kB. Użycie większego bloku (np. 48~kB) spowolniłoby rdzenie E, zmuszając je do częstego sięgania do wolniejszego cache L2, co zniwelowałoby zysk z ich pracy.
-    \end{itemize}
-
-    \item \textbf{Jakość zrównoleglenia i skalowalność:}
-    Dla standardowej instancji $10^8$ efektywność zrównoleglenia wariantu k5 wynosi jedynie 0,18 (Tablica 2). Główną przyczyną jest bardzo krótki czas obliczeń (0,06~s), w którym narzut na stworzenie i synchronizację 20 wątków OpenMP jest porównywalny z samym czasem pracy. Dodatkowy eksperyment dla $10^9$ (Rys. 4) wykazał wzrost wykorzystania procesora do \textbf{63,7\%}. Pokazuje to, że pełne wykorzystanie 12 rdzeni (20 wątków) wymaga dostatecznie dużych instancji problemu, aby zysk z pracy równoległej przeważył nad kosztem zarządzania wątkami.
-
-    \item \textbf{Analiza szeregowania (Scheduling):}
-    Wybór szeregowania zależy od charakteru algorytmu. Dla \textbf{k2} (dzielenie próbne) i \textbf{k5} (sito domenowe) najlepszy okazał się \texttt{guided}, który minimalizuje narzut synchronizacji przy jednoczesnym dbaniu o \textit{load balancing}. Dla \textbf{k4/k4a} (sito funkcyjne) lepszy jest \texttt{dynamic}, ponieważ koszt wykreślania dla różnych liczb pierwszych jest skrajnie różny (małe liczby pierwsze generują tysiące razy więcej zapisów niż duże).
-
-    \item \textbf{Wnioski końcowe:}
-    Najbardziej efektywnym podejściem jest połączenie \textbf{segmentowego sita Eratostenesa (k5)} z dynamicznym balansem obciążenia. 
-	Kluczem do sukcesu na nowoczesnych procesorach hybrydowych jest:
-     \begin{itemize}
-		\item Dopasowanie struktur danych (bloków) do mniejszej pamięci cache L1 (rdzeni E).
-    	\item Zastosowanie elastycznego szeregowania zadań, które zapobiega przestojom szybszych rdzeni P.
-    	\item Minimalizacja operacji zapisu poprzez warunkowe sprawdzanie wartości lub blokowanie domenowe, co odciąża Store Buffer.
-	\end{itemize}
+    \item \textbf{Najlepsze podejście: k5 (Równoległe sito domenowe z lokalnością danych).}
+    To rozwiązanie charakteryzuje się największą prędkością przetwarzania (96,024 mln l./s), deklasując najgorszą metodę o blisko \textbf{2280\%} 
+	(prędkość 22,8 raza większa od metody \textbf{k1}). Przewaga ta wynika z dwóch filarów: matematycznego (niska złożoność $O(n \log \log n)$) oraz sprzętowego
+	 (praca na blokach 32~kB zapobiega obciążeniu magistrali pamięciowej, a każda zmiana w L1 Cache pozostaje na lokalnym rdzeniu, unikając inwalidacji protokołów
+	  spójności pamięci typowej dla \textit{false sharing}).
+    
+    \item \textbf{Najgorsze podejście: k1 (Sekwencyjne dzielenie próbne).}
+    Metoda ta uzyskała prędkość rzędu 4,210 mln l./s (czas 23,750~s). Jej zła wydajność jest niezależna od wykorzystania pamięci (nie występuje tu problem cache misses).
+	 Prawdziwą przyczyną jest kolosalna liczba wykonanych instrukcji procesora. Jak pokazuje Tablica 2, procesor musiał wycofać (Instructions Retired) aż 
+	 \textbf{405,7 miliardów instrukcji} – co jest wartością \textbf{522 razy większą} niż w kodzie \textbf{k3a} (0,777 mld). Operacja modulo
+	 występująca w podwójnej pętli (Listing \ref{lst:k1}) jest najdroższą sprzętowo operacją arytmetyczną w jednostce ALU.
 \end{enumerate}
+
+\subsection{Analiza wpływu polityk szeregowania (Scheduling) na wydajność}
+Wpływ wyboru dyrektywy OpenMP różni się radykalnie w zależności od natury realizowanego problemu (Tablica 5):
+\begin{itemize}
+    \item \textbf{Problem niezrównoważony kosztowo (k2):} W kodzie \textbf{k2} iteracje są skrajnie nierówne (liczba 99 999 999 wymaga wielokrotnie więcej dzieleń 
+	próbnych niż liczba 50). Szeregowanie \texttt{static} z góry przydziela iteracje, przez co wątek z najdroższymi obliczeniami blokuje resztę. Zmiana na \texttt{guided}
+	 skraca czas z 6,339~s do 2,394~s (\textbf{2,6 raza szybsze wykonanie}), ponieważ wielkość przypisywanych porcji roboczych maleje proporcjonalnie do zbliżania się ku 
+	 końcowi pętli, perfekcyjnie balansując czas ukończenia wszystkich wątków (Effective CPU 68,9\%).
+    \item \textbf{Zjawisko fałszywego współdzielenia (k4 i k4a):} W wariancie \textbf{k4} to \texttt{dynamic} z rozmiarem paczki (chunk) 1 wypada najlepiej 
+	(0,296~s wobec 0,551~s dla \texttt{static}). Jest tak, ponieważ poszczególne liczby pierwsze wykreślają drastycznie różną liczbę wielokrotności 
+	(np. dla $i=2$ iteracji pętli wykreślającej jest miliony, a dla bardzo dużych $i$ zaledwie kilka). \texttt{Dynamic, 1} gwarantuje ciągłe "karmienie" rdzeni 
+	zadaniami, bez względu na koszt wykreślania dla konkretnego $i$.
+    \item \textbf{Problem wysoce zrównoważony (k5):} Blokowe wykreślanie zapewnia bardzo powtarzalny czas pracy w każdej iteracji, dlatego \texttt{guided} osiąga 
+	tutaj najlepszy czas (0,060~s), redukując koszty zarządzania kolejką wątków w porównaniu do klasycznego przydziału \texttt{dynamic}.
+\end{itemize}
+
+\textbf{Podsumowanie ogólne:} 
+Wyciśnięcie maksymalnej wydajności z hybrydowego procesora wielordzeniowego nie polega na ślepym dodaniu dyrektywy \texttt{\#pragma omp parallel for}. Najlepszy k
+od \textbf{k5} dowodzi, że optymalizacja musi zachodzić kaskadowo: najpierw redukcja złożoności matematycznej (Sito), następnie optymalizacja lokalności danych w
+ pamięci układu (blok 32~kB dostosowany do rozmiaru L1 układów E-Core, eliminacja \textit{Store Bound}), a dopiero na końcu zastosowanie podziału wielowątkowego (
+	domenowego), który chroni przed wyścigami danych w linii cache (\textit{False Sharing}). Dopiero taka synergia pozwoliła osiągnąć skok prędkości o \textbf{ponad 2000\%}.
 
 
 \end{document}
