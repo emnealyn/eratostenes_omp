@@ -55,11 +55,10 @@ int calculate(int n, int m){
 		}
 	}
 	
-	printf("Liczba liczb pierwszych: %d\n", prime_counter);
 
 	free(result);
 	free(primeArray);
-	return 0;
+	return prime_counter;
 }
 
 int main(){
