@@ -730,5 +730,41 @@ który nie pozwalał na efektywne wykorzystanie potencjału równoległego proce
 \newpage
 \section{Wnioski.}
 
+Na podstawie przeprowadzonych eksperymentów oraz szczegółowej analizy profilowania w narzędziu Intel VTune, sformułowano następujące wnioski:
+
+\begin{enumerate}
+    \item \textbf{Porównanie jakości i wydajności rozwiązań:} 
+    Najlepszym rozwiązaniem pod względem prędkości przetwarzania okazał się wariant \textbf{k5} (równoległe sito domenowe z blokowaniem), osiągając czas 0,060~s dla instancji $10^8$. Jest on ponad \textbf{395 razy szybszy} od najgorszego wariantu \textbf{k1} (23,750~s). Metody oparte na sicie Eratostenesa (k3-k5) deklasują metody dzielenia próbnego (k1-k2) ze względu na znacznie niższą złożoność obliczeniową i zastąpienie kosztownych operacji modulo prostym dodawaniem i adresowaniem pamięci.
+
+    \item \textbf{Wykorzystanie struktur procesora i eliminacja wąskich gardeł:}
+    \begin{itemize}
+        \item \textbf{Lokalność danych (k3 vs k3a):} Wariant k3 jest drastycznie ograniczony przez przepełnienie buforów zapisu (\textbf{82,6\% Store Bound}, Tablica 6) z powodu skokowego dostępu do pamięci w pełnym zakresie. Zastosowanie blokowania w k3a pozwoliło na utrzymanie danych w cache L1, co całkowicie wyeliminowało to wąskie gardło i skróciło czas obliczeń ponad 5-krotnie.
+        \item \textbf{Redukcja redundancji zapisów (k4 vs k4a):} Wprowadzenie warunku \texttt{if (result[j-m])} w k4a pozwoliło zredukować \texttt{Store Bound} z 72,3\% do 0,3\% (Tablica 7). Choć poprawiło to czas wykonania, metoda ta wciąż ustępuje k5, ponieważ brak blokowania domenowego powoduje wysokie opóźnienia na magistrali pamięci (\texttt{Memory Bound}).
+    \end{itemize}
+
+    \item \textbf{Analiza architektury hybrydowej (Performance i Efficient Cores):}
+    Zastosowany procesor i7-12700F posiada niejednorodną strukturę (8 rdzeni P i 4 rdzenie E), co niesie za sobą konkretne konsekwencje dla wydajności:
+    \begin{itemize}
+        \item \textbf{Konsekwencje wydajnościowe:} Rdzenie Performance są znacznie efektywniejsze – w teście k2 osiągają wskaźnik \texttt{Retiring} na poziomie 83,5\%, podczas gdy rdzenie Efficient jedynie 42,3\% (Tablica 4). Oznacza to, że rdzenie P wykonują dwa razy więcej użytecznej pracy w tym samym czasie.
+        \item \textbf{Problem Load Imbalance:} Różna moc obliczeniowa rdzeni sprawia, że przy domyślnym szeregowaniu \texttt{static} szybsze rdzenie P kończą pracę wcześniej i bezczynnie czekają na rdzenie E. Rozwiązaniem okazało się stosowanie \texttt{schedule(guided)} lub \texttt{dynamic}, które pozwalają na dynamiczne przydzielanie zadań w miarę zwalniania się zasobów, co pomaga "ukryć" mniejszą wydajność rdzeni E.
+        \item \textbf{Ograniczenia Cache L1:} Rdzenie P mają 48~kB L1, natomiast rdzenie E tylko 32~kB. Eksperyment wykazujący optimum bloku przy \textbf{32~kB} (Tablica 8) potwierdza, że w architekturze hybrydowej należy optymalizować kod pod "najsłabsze ogniwo" – stąd wybór bloku 32~kB. Użycie większego bloku (np. 48~kB) spowolniłoby rdzenie E, zmuszając je do częstego sięgania do wolniejszego cache L2, co zniwelowałoby zysk z ich pracy.
+    \end{itemize}
+
+    \item \textbf{Jakość zrównoleglenia i skalowalność:}
+    Dla standardowej instancji $10^8$ efektywność zrównoleglenia wariantu k5 wynosi jedynie 0,18 (Tablica 2). Główną przyczyną jest bardzo krótki czas obliczeń (0,06~s), w którym narzut na stworzenie i synchronizację 20 wątków OpenMP jest porównywalny z samym czasem pracy. Dodatkowy eksperyment dla $10^9$ (Rys. 4) wykazał wzrost wykorzystania procesora do \textbf{63,7\%}. Pokazuje to, że pełne wykorzystanie 12 rdzeni (20 wątków) wymaga dostatecznie dużych instancji problemu, aby zysk z pracy równoległej przeważył nad kosztem zarządzania wątkami.
+
+    \item \textbf{Analiza szeregowania (Scheduling):}
+    Wybór szeregowania zależy od charakteru algorytmu. Dla \textbf{k2} (dzielenie próbne) i \textbf{k5} (sito domenowe) najlepszy okazał się \texttt{guided}, który minimalizuje narzut synchronizacji przy jednoczesnym dbaniu o \textit{load balancing}. Dla \textbf{k4/k4a} (sito funkcyjne) lepszy jest \texttt{dynamic}, ponieważ koszt wykreślania dla różnych liczb pierwszych jest skrajnie różny (małe liczby pierwsze generują tysiące razy więcej zapisów niż duże).
+
+    \item \textbf{Wnioski końcowe:}
+    Najbardziej efektywnym podejściem jest połączenie \textbf{segmentowego sita Eratostenesa (k5)} z dynamicznym balansem obciążenia. 
+	Kluczem do sukcesu na nowoczesnych procesorach hybrydowych jest:
+     \begin{itemize}
+		\item Dopasowanie struktur danych (bloków) do mniejszej pamięci cache L1 (rdzeni E).
+    	\item Zastosowanie elastycznego szeregowania zadań, które zapobiega przestojom szybszych rdzeni P.
+    	\item Minimalizacja operacji zapisu poprzez warunkowe sprawdzanie wartości lub blokowanie domenowe, co odciąża Store Buffer.
+	\end{itemize}
+\end{enumerate}
+
 
 \end{document}
