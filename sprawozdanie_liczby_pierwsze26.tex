@@ -768,10 +768,16 @@ Jakość rozwiązań, mierzona jako stosunek wielkości prędkości przetwarzani
     \item \textbf{Ewolucja algorytmiczna (k1 vs k3):} Zmiana samego podejścia matematycznego z dzielenia próbnego (\textbf{k1}) na klasyczne Sito Eratostenesa (\textbf{k3}),
 	 nawet bez optymalizacji pamięciowej, doprowadziła do skrócenia czasu przetwarzania z 23,750~s do 0,660~s. Oznacza to, że metoda oparta na wykreślaniu wielokrotności jest
 	  \textbf{36 razy szybsza} od metody opartej na dzieleniu. 
+    \item \textbf{Wpływ zrównoleglenia w dzieleniu próbnym (k1 vs k2):} Implementacja równoległa (\textbf{k2}) pozwoliła na blisko 10-krotne skrócenie czasu (do 2,394~s). 
+    Mimo to, podejście oparte na dzieleniu nawet w wersji wielowątkowej pozostaje drastycznie wolniejsze od sekwencyjnego sita (\textbf{k3}), co podkreśla 
+    prymat doboru właściwego algorytmu nad czystą siłą obliczeniową.
+    \item \textbf{Wpływ zrównoleglenia funkcyjnego w sicie (k3 vs k4/k4a):} Warianty równoległe bez lokalności danych (\textbf{k4}, \textbf{k4a}) 
+    osiągnęły lepsze czasy niż bazowe sito sekwencyjne (\textbf{k3}), redukując czas do odpowiednio 0,381~s i 0,296~s. Pokazuje to skuteczność 
+    paralelizacji OpenMP nawet przy obciążeniu magistrali pamięciowej.
     \item \textbf{Wpływ lokalności danych (k3 vs k3a):} Porównanie wariantów sekwencyjnych sita ukazuje fundamentalne znaczenie dostępu do pamięci. Segmentacja tablicy na bloki 
 	w kodzie \textbf{k3a} (Listing \ref{lst:k3a}) pozwoliła na osiągnięcie prędkości 35,714 mln l./s wobec 14,394 mln l./s w \textbf{k3}. Przetwarzanie w wariancie \textbf{k3a} 
 	trwało \textbf{5,07 raza krócej} wyłącznie dzięki dopasowaniu rozmiaru przetwarzanych danych do rozmiaru pamięci podręcznej, bez jakiejkolwiek zmiany złożoności obliczeniowej.
-    \item \textbf{Wpływ zrównoleglenia (k3a vs k5):} Wprowadzenie wielowątkowości do zoptymalizowanego algorytmu sekwencyjnego (\textbf{k3a} $\rightarrow$ \textbf{k5}) zwiększyło
+    \item \textbf{Wpływ zrównoleglenia domenowego (k3a vs k5):} Wprowadzenie wielowątkowości do zoptymalizowanego algorytmu sekwencyjnego (\textbf{k3a} $\rightarrow$ \textbf{k5}) zwiększyło
 	 prędkość przetwarzania o około \textbf{168\%} (z 35,714 do 96,024 mln l./s), redukując czas z 0,130~s do zaledwie 0,060~s (\textbf{2,16 raza krócej}).
 \end{itemize}
 
@@ -797,11 +803,15 @@ Użyty w badaniach procesor Intel Core i7-12700F posiada architekturę hybrydow�
 \end{itemize}
 
 \subsection{Ocena jakości zrównoleglenia i skalowalności}
-W celu oceny zrównoleglenia przeanalizowano parametry przyspieszenia oraz efektywności dla rdzeni fizycznych (Tablica 2).
+W celu oceny zrównoleglenia przeanalizowano parametry przyspieszenia oraz efektywności dla rdzeni fizycznych (Tablica 2) oraz wyniki testów Hotspots i Threading.
 \begin{itemize}
     \item \textbf{Przyspieszenie i efektywność:} Dla optymalnego wariantu \textbf{k5}, przyspieszenie względem najlepszego kodu sekwencyjnego (\textbf{k3a}) 
 	wynosi \textbf{2,17}. Biorąc pod uwagę użycie 12 rdzeni fizycznych, efektywność wynosi \textbf{0,18} (18\%). Jest to wartość relatywnie niska, sugerująca, 
 	że przeważająca część zasobów pozostaje niewykorzystana (współczynnik \textit{Effective CPU} wynosi zaledwie 23,4\%).
+
+    \item \textbf{Skalowalność i wykorzystanie procesorów logicznych:} Analiza wyników Hotspots (Rysunki 3, 4, 5) oraz Threading (Rysunek 6) pokazuje, 
+    że system faktycznie angażuje wiele rdzeni. Warto zauważyć, że przy większych obciążeniach wykorzystujemy faktycznie te 15-17 wątków na raz (co widać na wykresie threading dla \textbf{k4}), 
+    zatem zmniejszenie ich liczby miałoby realny, negatywny wpływ na czas przetwarzania kodów, mimo pozornie niskiej efektywności przy małych zakresach.
     \item \textbf{Przyczyny niskiej efektywności i eksperyment ze skalowalnością:} Niska utylizacja nie jest wynikiem błędów w architekturze kodu \textbf{k5},
 	lecz narzutu środowiska uruchomieniowego (tworzenie i synchronizacja wątków OpenMP) na zbyt małej instancji problemu. Czas wykonania 0,060~s jest tak krótki, 
 	że narzut administracyjny przewyższa czas obliczeń użytecznych. Eksperyment z zakresem powiększonym 10-krotnie (do 1 mld, Rysunki 3 i 4) dobitnie to udowadnia:
@@ -842,8 +852,8 @@ Wpływ wyboru dyrektywy OpenMP różni się radykalnie w zależności od natury 
 \textbf{Podsumowanie ogólne:} 
 Wyciśnięcie maksymalnej wydajności z hybrydowego procesora wielordzeniowego nie polega na ślepym dodaniu dyrektywy \texttt{\#pragma omp parallel for}. Najlepszy k
 od \textbf{k5} dowodzi, że optymalizacja musi zachodzić kaskadowo: najpierw redukcja złożoności matematycznej (Sito), następnie optymalizacja lokalności danych w
- pamięci układu (blok 32~kB dostosowany do rozmiaru L1 układów E-Core, eliminacja \textit{Store Bound}), a dopiero na końcu zastosowanie podziału wielowątkowego (
-	domenowego), który chroni przed wyścigami danych w linii cache (\textit{False Sharing}). Dopiero taka synergia pozwoliła osiągnąć skok prędkości o \textbf{ponad 2000\%}.
+ pamięci układu (blok 32~kB dostosowany do rozmiaru L1 układów E-Core, eliminacja \textit{Store Bound}), a dopiero na końcu zastosowanie podziału wielowątkowego
+  (domenowego), który chroni przed wyścigami danych w linii cache (\textit{False Sharing}). Dopiero taka synergia pozwoliła osiągnąć skok prędkości o \textbf{ponad 2000\%}.
 
 
 \end{document}
