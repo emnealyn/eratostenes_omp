@@ -1,0 +1,21 @@
+Computing CPU reference (may take a while)... ^C
+inf160271@gpu-5:~/cuda_pomoc$ CUDA_VISIBLE_DEVICES=1 ./matrixMul
+[Matrix Multiply Using CUDA] - Starting...
+GPU Device 0: "Pascal" with compute capability 6.1
+
+Computing CPU reference (may take a while)... Done.
+
+Summary of results (Matrix Size: 3200x3200):
+--------------------------------------------------------------------------------
+Running Original (BLOCK_SIZE=16)... Error at 227295: GPU=2158.500977, CPU=2158.399902
+Done. Performance= 726.81 GFlop/s, Time= 90.170 msec, Result: FAIL
+Running Original (BLOCK_SIZE=32)... Error at 227295: GPU=2158.500977, CPU=2158.399902
+Done. Performance= 1283.01 GFlop/s, Time= 51.080 msec, Result: FAIL
+Running 2-Results/thread (BLOCK_SIZE=16)... Error at 227295: GPU=2158.500977, CPU=2158.399902
+Done. Performance= 1289.98 GFlop/s, Time= 50.804 msec, Result: FAIL
+Running 2-Results/thread (BLOCK_SIZE=32)... Error at 227295: GPU=2158.500977, CPU=2158.399902
+Done. Performance= 1655.20 GFlop/s, Time= 39.594 msec, Result: FAIL
+Running 4-Results/thread (BLOCK_SIZE=16)... Error at 227295: GPU=2158.500977, CPU=2158.399902
+Done. Performance= 2193.53 GFlop/s, Time= 29.877 msec, Result: FAIL
+--------------------------------------------------------------------------------
+inf160271@gpu-5:~/cuda_pomoc$ 

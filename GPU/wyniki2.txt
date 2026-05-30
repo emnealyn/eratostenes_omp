@@ -1,0 +1,99 @@
+Summary of results (Matrix Size: 3200x3200):
+--------------------------------------------------------------------------------
+==1306788== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)" (done)
+Running Original (BLOCK_SIZE=16)... Done. Performance= 119.91 GFlop/s, Time= 546.535 msec, Result: PASS
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)" (done)
+Running Original (BLOCK_SIZE=32)... Done. Performance= 165.95 GFlop/s, Time= 394.911 msec, Result: PASS
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)" (done)
+Running 2-Results/thread (BLOCK_SIZE=16)... Done. Performance= 165.52 GFlop/s, Time= 395.942 msec, Result: PASS
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)" (done)
+Running 2-Results/thread (BLOCK_SIZE=32)... Done. Performance= 188.08 GFlop/s, Time= 348.443 msec, Result: PASS
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Replaying kernel "void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)" (done)
+Running 4-Results/thread (BLOCK_SIZE=16)... Done. Performance= 211.22 GFlop/s, Time= 310.278 msec, Result: PASS
+--------------------------------------------------------------------------------
+==1306788== Profiling application: ./matrixMul
+==1306788== Profiling result:
+==1306788== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "NVIDIA GeForce GTX 1080 (0)"
+    Kernel: void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)
+         11                        achieved_occupancy                        Achieved Occupancy    0.998470    0.998842    0.998709
+         11                             sm_efficiency                   Multiprocessor Activity      99.51%      99.89%      99.73%
+         11                                       ipc                              Executed IPC    1.698076    1.699808    1.699111
+         11                          gld_transactions                  Global Load Transactions   768000002   768000002   768000002
+         11                  shared_load_transactions                  Shared Load Transactions  1280000000  1280000000  1280000000
+    Kernel: void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)
+         11                        achieved_occupancy                        Achieved Occupancy    0.999041    0.999310    0.999222
+         11                             sm_efficiency                   Multiprocessor Activity      99.91%      99.95%      99.93%
+         11                                       ipc                              Executed IPC    1.051036    1.067014    1.058534
+         11                          gld_transactions                  Global Load Transactions  2048000002  2048000002  2048000002
+         11                  shared_load_transactions                  Shared Load Transactions  1536000000  1536000000  1536000000
+    Kernel: void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)
+         11                        achieved_occupancy                        Achieved Occupancy    0.998653    0.998996    0.998820
+         11                             sm_efficiency                   Multiprocessor Activity      99.80%      99.90%      99.86%
+         11                                       ipc                              Executed IPC    1.530091    1.531733    1.531011
+         11                          gld_transactions                  Global Load Transactions  1024000002  1024000002  1024000002
+         11                  shared_load_transactions                  Shared Load Transactions  1536000000  1536000000  1536000000
+    Kernel: void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)
+         11                        achieved_occupancy                        Achieved Occupancy    0.747600    0.747940    0.747796
+         11                             sm_efficiency                   Multiprocessor Activity      99.68%      99.82%      99.76%
+         11                                       ipc                              Executed IPC    1.893804    1.925676    1.908996
+         11                          gld_transactions                  Global Load Transactions  1024000002  1024000002  1024000002
+         11                  shared_load_transactions                  Shared Load Transactions   768000000   768000000   768000000
+    Kernel: void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)
+         11                        achieved_occupancy                        Achieved Occupancy    0.997876    0.998221    0.998081
+         11                             sm_efficiency                   Multiprocessor Activity      99.82%      99.90%      99.86%
+         11                                       ipc                              Executed IPC    1.474272    1.491265    1.483015
+         11                          gld_transactions                  Global Load Transactions  1536000002  1536000002  1536000002
+         11                  shared_load_transactions                  Shared Load Transactions  1280000000  1280000000  1280000000

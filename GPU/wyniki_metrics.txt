@@ -1,0 +1,26 @@
+nvprof --metrics dram_read_bytes,dram_write_bytes,flop_count_sp ./matrixMul
+==1307041== Profiling application: ./matrixMul
+==1307041== Profiling result:
+==1307041== Metric result:
+Invocations                               Metric Name                            Metric Description         Min         Max         Avg
+Device "NVIDIA GeForce GTX 1080 (0)"
+    Kernel: void MatrixMulCUDA_2Res<int=32>(float*, float*, float*, int, int)
+         11                           dram_read_bytes        Total bytes read from DRAM to L2 cache  4257484704  4362833440  4313004093
+         11                          dram_write_bytes     Total bytes written from L2 cache to DRAM    40830720    41794624    41431473
+         11                             flop_count_sp   Floating Point Operations(Single Precision)  6.5536e+10  6.5536e+10  6.5536e+10
+    Kernel: void MatrixMulCUDA<int=16>(float*, float*, float*, int, int)
+         11                           dram_read_bytes        Total bytes read from DRAM to L2 cache  8280023008  8346475424  8303639444
+         11                          dram_write_bytes     Total bytes written from L2 cache to DRAM    40915648    41860960    41659810
+         11                             flop_count_sp   Floating Point Operations(Single Precision)  6.5536e+10  6.5536e+10  6.5536e+10
+    Kernel: void MatrixMulCUDA<int=32>(float*, float*, float*, int, int)
+         11                           dram_read_bytes        Total bytes read from DRAM to L2 cache  4305937824  4345892832  4328362804
+         11                          dram_write_bytes     Total bytes written from L2 cache to DRAM    40878464    41798240    41133949
+         11                             flop_count_sp   Floating Point Operations(Single Precision)  6.5536e+10  6.5536e+10  6.5536e+10
+    Kernel: void MatrixMulCUDA_4Res<int=16>(float*, float*, float*, int, int)
+         11                           dram_read_bytes        Total bytes read from DRAM to L2 cache  4202434656  4230615200  4212295793
+         11                          dram_write_bytes     Total bytes written from L2 cache to DRAM    40831936    41752256    41338411
+         11                             flop_count_sp   Floating Point Operations(Single Precision)  6.5536e+10  6.5536e+10  6.5536e+10
+    Kernel: void MatrixMulCUDA_2Res<int=16>(float*, float*, float*, int, int)
+         11                           dram_read_bytes        Total bytes read from DRAM to L2 cache  8253939296  8283391648  8270303392
+         11                          dram_write_bytes     Total bytes written from L2 cache to DRAM    40923392    41849760    41422257
+         11                             flop_count_sp   Floating Point Operations(Single Precision)  6.5536e+10  6.5536e+10  6.5536e+10

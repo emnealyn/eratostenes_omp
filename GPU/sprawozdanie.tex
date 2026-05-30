@@ -1,0 +1,237 @@
+\documentclass[10pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{babel}
+\babelprovide[import, main]{polish}
+\usepackage{amsmath}
+\usepackage[a4paper, margin=1.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstdefinestyle{mystyle}{
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    basicstyle=\ttfamily\small,
+    frame=single,
+    breaklines=true,
+    captionpos=b,
+    showstringspaces=false
+}
+
+\title{Projekt II - Przetwarzanie równoległe na kartach graficznych (CUDA)}
+\author{Emilia Bonk 160108 \\ Szymon Urban 160271}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Wstęp.}
+
+\begin{itemize}
+\item \textbf{Nazwa przedmiotu:} Laboratorium z przetwarzania równoległego
+\item \textbf{Autorzy:} Emilia Bonk (160108), Szymon Urban (160271)
+\item \textbf{Grupa dziekańska:} L09
+\item \textbf{Termin zajęć laboratoryjnych:} Wtorek 9:45-11:15
+\item \textbf{Opis zadania:}
+Celem ćwiczenia była analiza optymalizacji kafelkowego algorytmu mnożenia macierzy w środowisku CUDA z wykorzystaniem pamięci współdzielonej bloku wątków. Zadanie polegało na zbadaniu wpływu zwiększenia intensywności obliczeniowej (obliczanie 1, 2 oraz 4 wyników przez pojedynczy wątek) na efektywność przetwarzania.
+\item \textbf{Adres e-mail:} emilia.bonk@student.put.poznan.pl, szymon.urban@student.put.poznan.pl
+\end{itemize}
+
+\section{Informacje techniczne.}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Parametr systemu GPU} & \textbf{Wartość} \\
+\hline
+Model karty graficznej & NVIDIA GeForce GTX 1080 (Architektura Pascal) \\
+\hline
+Liczba multiprocesorów (SM) & 20 multiprocesorów \\
+\hline
+Liczba rdzeni CUDA ogółem & 2560 rdzeni CUDA \\
+\hline
+Maksymalny zegar GPU & 1734 MHz (1.73 GHz) \\
+\hline
+Pojemność pamięci globalnej VRAM & 8112 MBytes (8 GB) \\
+\hline
+Maksymalna pamięć współdzielona na blok & 49152 bytes (48 KB) \\
+\hline
+Wielkość pamięci współdzielonej multiprocesora & 98304 bytes (96 KB) \\
+\hline
+Dostępna liczba rejestrów na blok & 65536 \\
+\hline
+Rozmiar warpu (wiązki) & 32 wątki \\
+\hline
+Wersja sterownika / runtime CUDA & 12.2 / 12.5 \\
+\hline
+\end{tabular}
+\caption{Informacje techniczne dotyczące środowiska testowego GPU}
+\end{table}
+
+\newpage
+\section{Prezentacja i analiza kodów.}
+
+\subsection*{Uzasadnienie rozmiaru instancji problemu}
+Karta NVIDIA GeForce GTX 1080 posiada 20 multiprocesorów (SM). Każdy SM może przetwarzać maksymalnie 2 bloki po 1024 wątki, co daje 40 bloków wykonywanych w jednym momencie (tzw. pełna fala). Dla macierzy $3200 \times 3200$ i bloku $32 \times 32$, siatka (Grid) składa się z $100 \times 100 = 10000$ bloków. Liczba ta jest $250$ razy większa niż pojemność jednej fali ($40$ bloków), co gwarantuje ciągłe nasycenie pracą wszystkich multiprocesorów przez cały czas trwania obliczeń i minimalizuje błędy pomiarowe na styku rozpoczęcia i zakończenia działania kernela.
+
+Zgodnie z wymaganiami projektowymi przygotowano trzy warianty jądra (kernela) realizującego kafelkowe mnożenie macierzy z wykorzystaniem pamięci współdzielonej. Zbadano bloki wątków o rozmiarach $16 \times 16$ oraz $32 \times 32$. W każdym przypadku wielkość przetwarzanej instancji problemu (macierze $3200 \times 3200$) dobrano tak, aby w pełni nasycić 20 multiprocesorów karty NVIDIA GeForce GTX 1080.
+
+\subsection*{Teoretyczna analiza limitów przydziału pracy (Siatka wyników)}
+Zgodnie ze specyfikacją sprzętową karty NVIDIA GeForce GTX 1080, limit pamięci współdzielonej dostępnej dla pojedynczego bloku wątków wynosi dokładnie 49152 bajty (48 KB). Przy założeniu, że słowo danych typu \texttt{float} zajmuje 4 bajty, możemy teoretycznie wyznaczyć maksymalną liczbę wyników, jaką może obliczyć pojedynczy wątek w konfiguracjach bloków $32\times32$ oraz $16\times16$:
+\begin{itemize}
+    \item \textbf{Dla bloku $32\times32$ (1024 wątki):} Pojedynczy kafel danych z jednej macierzy zajmuje $32 \times 32 \times 4 \text{ B} = 4096$ bajtów. Dostępna pamięć współdzielona pozwala na jednoczesne załadowanie maksymalnie $49152 / 4096 = 12$ bloków danych. Przekłada się to na po 6 bloków z macierzy A i macierzy B. Teoretycznie pozwala to na obliczenie siatki $6 \times 6 = 36$ wyników częściowych przez pojedynczy wątek.
+    \item \textbf{Dla bloku $16\times16$ (256 wątków):} Pojedynczy kafel danych zajmuje $16 \times 16 \times 4 \text{ B} = 1024$ bajty. Pamięć współdzielona bloku jest w stanie pomieścić aż $49152 / 1024 = 48$ bloków danych (po 24 bloki z macierzy A i B). Teoretycznie pozwala to jednemu wątkowi na wyznaczenie siatki aż $24 \times 24 = 576$ wyników częściowych.
+\end{itemize}
+W warunkach rzeczywistych te ekstremalne granice teoretyczne są niemożliwe do osiągnięcia z powodu ograniczeń fizycznego rozmiaru pliku rejestrów procesorów strumieniowych (SM), które uniemożliwiają przechowywanie tak ogromnej liczby zmiennych akumulacyjnych bez zjawiska \textit{register spilling} do wolnej pamięci lokalnej.
+
+\subsection*{Wariant 1: Oryginalny algorytm (1 wynik obliczany przez wątek)}
+\textbf{Oznaczenie skrótowe:} 1-Res \\
+Wersja bazowa zaczerpnięta z przykładów NVIDIA. Każdy wątek ładuje do pamięci współdzielonej po jednym słowie z macierzy A i B, a następnie oblicza dokładnie jeden wynik cząstkowy tablicy C. Wątek przechowuje wynik tymczasowy w jednej zmiennej rejestrowej (\texttt{Csub}). Jak widać na Listingu 1 oraz w kodzie źródłowym \texttt{matrixMul.cu}, dostęp do pamięci globalnej w celu załadowania kafelków odbywa się w sposób koalescyjny.
+
+\begin{lstlisting}[style=mystyle, caption={Fragment jądra obliczającego 1 wynik na wątek.}, label={lst:1res}]
+// matrixMul.cu
+As[ty][tx] = A[a + wA * ty + tx];
+Bs[ty][tx] = B[b + wB * ty + tx];
+\end{lstlisting}
+
+\subsection*{Wariant 2: Obliczanie 2 wyników przez wątek}
+\textbf{Oznaczenie skrótowe:} 2-Res \\
+W tym podejściu pojedynczy wątek oblicza dwa sąsiednie wyniki wiersza macierzy docelowej ($C_{ty, tx}$ oraz $C_{ty, tx+BLOCK\_SIZE}$). Wymaga to pobrania do pamięci współdzielonej jednego kafelka z macierzy A oraz dwóch kafelków z macierzy B. Dane przechowywane są wielokrotnie wykorzystywane w rejestrach wątku (\texttt{res1}, \texttt{res2}). Zgodnie z Listingiem 2, wątek wykonuje dodatkowy odczyt z macierzy B, co zwiększa intensywność obliczeniową przy tym samym koszcie ładowania danych z macierzy A.
+
+\begin{lstlisting}[style=mystyle, caption={Fragment jądra obliczającego 2 wyniki na wątek.}, label={lst:2res}]
+// matrixMul.cu
+As[ty][tx] = A[a + wA * ty + tx];
+Bs[ty][tx] = B[b + wB * ty + tx];
+Bs[ty][tx + BLOCK_SIZE] = B[b + wB * ty + tx + BLOCK_SIZE];
+\end{lstlisting}
+
+\subsection*{Wariant 3: Obliczanie 4 wyników przez wątek}
+\textbf{Oznaczenie skrótowe:} 4-Res \\
+Wątek oblicza siatkę $2 \times 2$ wyników. W tym celu ładuje dwa kafelki z macierzy A oraz dwa z macierzy B. Skutkuje to maksymalnym ponownym użyciem danych w pamięci współdzielonej oraz koniecznością utrzymywania aż 4 wyników tymczasowych w rejestrach procesora. Wariant ten uruchomiono wyłącznie dla bloku $16 \times 16$. Próba rozszerzenia tego wariantu do rozmiaru bloku $32 \times 32$ kończy się niepowodzeniem sprzętowym z powodu przekroczenia alokacji rejestrów, a nie limitu pamięci współdzielonej. Dla bloku $32\times32$, wariant 4-Res wymagałby załadowania tablic \texttt{As[64][32]} oraz \texttt{Bs[32][64]}, co zajmuje łacznie $(2048 + 2048) \times 4 \text{ B} = 16\text{ KB}$ pamięci współdzielonej na blok. Mieści się to w limicie 48 KB. Jednakże wieloprocesor (SM) architektury Pascal posiada ścisły limit 65536 rejestrów 32-bitowych. Blok $32\times32$ to 1024 wątki. Aby zachować minimalną równoległość (np. 2 bloki na SM w celu ukrycia latencji szyny pamięci), na wątek może przypadać maksymalnie $65536 / 2048 = 32$ rejestry. Agresywne unrollowanie pętli w wariancie 4-Res oraz konieczność jednoczesnego utrzymywania siatki rejestrów akumulatorów (\texttt{res00}, \texttt{res01}, \texttt{res10}, \texttt{res11}) wraz z indeksowaniem drastycznie przekracza ten limit, powodując błąd alokacji zasobów hardware'owych uniemożliwiający uruchomienie jądra. W kodzie widoczne jest pobieranie danych dla rozszerzonego obszaru roboczego wątku.
+
+\begin{lstlisting}[style=mystyle, caption={Fragment jądra obliczającego 4 wyniki na wątek.}, label={lst:4res}]
+// matrixMul.cu
+As[ty][tx] = A[a + wA * ty + tx];
+As[ty + BLOCK_SIZE][tx] = A[a + wA * (ty + BLOCK_SIZE) + tx];
+Bs[ty][tx] = B[b + wB * ty + tx];
+Bs[ty][tx + BLOCK_SIZE] = B[b + wB * ty + tx + BLOCK_SIZE];
+\end{lstlisting}
+
+\subsection*{Niejednorodne dane i test poprawności}
+Dla zapewnienia wiarygodności weryfikacji poprawności obliczeń zrezygnowano ze stałych wartości macierzy na rzecz danych niejednorodnych (zależnych od indeksów). Obliczenia GPU zweryfikowano względem wzorcowej funkcji wykonującej mnożenie na CPU. Ponieważ sprzętowe instrukcje GPU (FMA - Fused Multiply-Add) oraz inna kolejność sumowania powodują naturalny błąd precyzji zmiennoprzecinkowej dla dużych macierzy ($3200 \times 3200$), test oparto na pomiarze błędu względnego ze zdefiniowaną tolerancją.
+
+\begin{lstlisting}[style=mystyle, caption={Logika testu poprawności z uwzględnieniem błędu względnego.}, label={lst:validation}]
+// Generacja niejednorodnych danych (wartosci pseudolosowe zalezne od indeksu)
+data[i * w + j] = (i % 100) * 0.01f;
+
+// Weryfikacja wynikow przy pomocy bledu wzglednego
+double cpu_ref = (double)h_C_ref[i];
+double gpu_res = (double)h_C[i];
+double rel_err = fabs(gpu_res - cpu_ref) / (fabs(cpu_ref) > 1.0 ? fabs(cpu_ref) : 1.0);
+
+if (rel_err > 1e-2) {
+    correct = false; // Odrzucenie jesli roznica wzgledna przekracza 1%
+}
+\end{lstlisting}
+
+Wszystkie zaimplementowane warianty kerneli pomyślnie przeszły test walidacyjny, zgłaszając wynik \texttt{PASS}.
+
+
+\newpage
+\subsection*{Obliczenia współczynnika CGMA (Teoria)}
+Współczynnik CGMA (Compute to Global Memory Access) określa stosunek liczby operacji arytmetycznych do liczby dostępów do pamięci globalnej. Na poziomie teoretycznym dla kafelkowego mnożenia macierzy:
+\begin{itemize}
+    \item \textbf{Wariant 1-Res:} Każdy wątek ładuje 2 słowa (8 bajtów - jedno z A, jedno z B) z pamięci globalnej do współdzielonej, aby wykonać 1 operację FMA (2 operacje arytmetyczne: mnożenie i dodawanie) wewnątrz pętli $k$. Daje to teoretyczny stosunek 1 operacji na 1 załadowane słowo.
+    \item \textbf{Wariant 2-Res:} Wątek pobiera do pamięci współdzielonej 3 słowa (1 słowo z macierzy A oraz 2 słowa z macierzy B), w oparciu o które wykonuje w pętli 2 operacje FMA (co odpowiada 4 operacjom arytmetycznym). Teoretyczny współczynnik CGMA wynosi w tym przypadku $\frac{4}{3} \approx 1.33$ operacji na jedno pobrane słowo z pamięci globalnej.
+    \item \textbf{Wariant 4-Res:} Wątek ładuje 4 słowa (2 z A, 2 z B), ale wykonuje 4 operacje FMA (8 operacji arytmetycznych). Teoretyczny stosunek CGMA rośnie do 2 operacji na słowo, ponieważ dane raz załadowane do pamięci współdzielonej są wykorzystywane dwukrotnie częściej.
+\end{itemize}
+
+\section{Prezentacja wyników i omówienie przebiegu eksperymentu.}
+
+\subsection*{Obliczenia intensywności arytmetycznej z profilerem}
+Na podstawie danych zebranych przez profiler (\texttt{dram\_read\_bytes}, \texttt{dram\_write\_bytes}, \texttt{flop\_count\_sp}) wyliczono rzeczywistą intensywność arytmetyczną według wzoru:
+\[ \text{Intensywność} = \frac{\text{flop\_count\_sp}}{\text{dram\_read\_bytes} + \text{dram\_write\_bytes}} \left[ \frac{\text{FLOP}}{\text{Byte}} \right] \]
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Wariant} & \textbf{FLOPs} & \textbf{DRAM Read (B)} & \textbf{DRAM Write (B)} & \textbf{Intensywność} \\
+\hline
+Oryginał (BS=16) & $6.55 \cdot 10^{10}$ & $8.30 \cdot 10^9$ & $4.16 \cdot 10^7$ & 7.85 FLOP/B \\
+\hline
+Oryginał (BS=32) & $6.55 \cdot 10^{10}$ & $4.33 \cdot 10^9$ & $4.11 \cdot 10^7$ & 15.00 FLOP/B \\
+\hline
+2-Res (BS=16) & $6.55 \cdot 10^{10}$ & $8.27 \cdot 10^9$ & $4.14 \cdot 10^7$ & 7.88 FLOP/B \\
+\hline
+2-Res (BS=32) & $6.55 \cdot 10^{10}$ & $4.31 \cdot 10^9$ & $4.14 \cdot 10^7$ & 15.05 FLOP/B \\
+\hline
+4-Res (BS=16) & $6.55 \cdot 10^{10}$ & $4.21 \cdot 10^9$ & $4.13 \cdot 10^7$ & \textbf{15.41 FLOP/B} \\
+\hline
+\end{tabular}
+\caption{Intensywność arytmetyczna wyliczona na podstawie metryk profilera.}
+\end{table}
+
+Jak wynika z powyższej tabeli, intensywność arytmetyczna rośnie wraz ze zwiększaniem pracy przypadającej na pojedynczy wątek. Wariant 4-Res (BS=16) osiąga intensywność porównywalną z wariantem oryginalnym dla bloku 32, co tłumaczy jego wysoką wydajność mimo mniejszego rozmiaru bloku.
+
+\subsection*{Prędkość przetwarzania dla poszczególnych wariantów}
+Tabela 2 prezentuje zestawienie prędkości i czasu obliczeń w zależności od wariantu przydziału pracy oraz rozmiaru bloku wątków.
+
+\begin{table}[h!]
+\centering
+\begingroup
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Wariant algorytmu} & \textbf{Blok $16 \times 16$} & \textbf{Czas [ms]} & \textbf{Blok $32 \times 32$} & \textbf{Czas [ms]} \\
+\hline
+Oryginał (1-Res/wątek) & 119.91 GFlop/s & 546.54 & 165.95 GFlop/s & 394.91 \\
+\hline
+Zoptymalizowany (2-Res/wątek) & 165.52 GFlop/s & 395.94 & 188.08 GFlop/s & 348.44 \\
+\hline
+Maksymalny (4-Res/wątek) & \textbf{211.22 GFlop/s} & \textbf{310.28} & Brak (limit pam.) & - \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Porównanie prędkości obliczeń (GFlop/s) i czasu wykonania dla instancji $3200 \times 3200$.}
+\end{table}
+
+\textbf{Mikro-uwagi do tabeli prędkości:}
+Zauważalny jest trend drastycznego wzrostu przepustowości obliczeniowej w miarę zwiększania liczby wyników liczonych przez wątek. Obliczenia 4 wyników dla bloku $16 \times 16$ skutkują niemal dwukrotnym wzrostem wydajności względem oryginalnego algorytmu dla tego samego bloku.
+
+\subsection*{Analiza metryk sprzętowych (nvprof)}
+Aby wyjaśnić przyczynę różnic w czasach wykonania poszczególnych wariantów, zebrano dane dotyczące ruchu w hierarchii pamięci karty graficznej oraz efektywności wykorzystania potoku wykonawczego.
+
+\begin{table}[h!]
+\centering
+\begingroup
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{Nazwa wariantu i blok} & \textbf{Occupancy} & \textbf{SM Efficiency} & \textbf{IPC} & \textbf{Global Load (Mld)} & \textbf{Shared Load (Mld)} \\
+\hline
+Oryginał (BS=16) & 99.9\% & 99.9\% & 1.05 & 2,048 & 1,536 \\
+\hline
+Oryginał (BS=32) & 99.8\% & 99.9\% & 1.53 & 1,024 & 1,536 \\
+\hline
+2-Res (BS=16) & 99.8\% & 99.9\% & 1.48 & 1,536 & 1,280 \\
+\hline
+2-Res (BS=32) & 99.8\% & 99.7\% & 1.69 & 0,768 & 1,280 \\
+\hline
+4-Res (BS=16) & \textbf{74.7\%} & 99.8\% & \textbf{1.90} & \textbf{1,024} & \textbf{0,768} \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Wyniki analizy przyczyn efektywności z wykorzystaniem profilera nvprof.}
+\end{table}
+
+\textbf{Mikro-uwagi do metryk sprzętowych:}
+\begin{itemize}
+    \item \textbf{Redukcja transakcji z pamięcią:} Zwiększenie krotności użycia raz pobranych danych drastycznie redukuje żądania dostępu do pamięci globalnej (\textit{Global Load}). Algorytm wariantu 4-Res zredukował transakcje o 50\% (z 2,04 mld do 1,02 mld) względem oryginału, co ma decydujący wpływ na szybkość pracy kernela.
+    \item \textbf{Przechowywanie danych w rejestrach i redukcja ruchu pamięci:} Wprowadzenie 4 wyników na wątek przeniosło obciążenie z pamięci współdzielonej (\textit{Shared Load Transactions} spadło o połowę: z 1,53 mld do 0,76 mld) bezpośrednio na ultraszybki plik rejestrów. Analiza teoretyczna przesyłu danych wskazuje, że dla instancji $3200\times3200$ przy kafelkowaniu bazowym wolumen żądań z pamięci globalnej powin wynosić znacznie więcej, jednak wartość \texttt{gld\_transactions} na poziomie 1,024 mld idealnie odwzorowuje redukcję transakcji szyny o 50\% w stosunku do bazowego algorytmu BS=16 (2,048 mld). Różnice pomiędzy tą wartością a fizycznie zmierzoną metryką \texttt{dram\_read\_bytes} w Tabeli 1 wynikają ze świetnego współczynnika trafień (\textit{Hit Rate}) pamięci podręcznej L2, która przechwytuje powtarzające się odczyty pasm macierzy A i B, radykalnie zwiększając rzeczywistą intensywność arytmetyczną do poziomu \textbf{15.41 FLOP/B}.
+    \item \textbf{Paradoks Zajętości (Occupancy vs. Performance):} Zwiększone zapotrzebowanie na rejestry w wariancie 4-Res (BS=16) wywołało spadek parametru \textit{achieved\_occupancy} do poziomu 74.7\%. Multiprocesor Pascal SM pozwala na jednoczesne aktywowanie maksymalnie 2048 wątków (czyli 8 bloków po 256 wątków). Spadek occupancy do ok. 75\% oznacza ograniczenie liczby aktywnych bloków z 8 do 6 na jeden SM, wymuszone wyczerpaniem puli rejestrów przez rozbudowany stan wewnętrzny jądra. Eksperyment dowodzi jednak, że wysoka zajętość (\textit{occupancy}) nie jest warunkiem koniecznym do osiągnięcia maksymalnej wydajności. Dzięki drastycznemu podniesieniu poziomu niezależności instrukcji (ILP - \textit{Instruction-Level Parallelism}) w pętli obliczeniowej, jądro 4-Res osiąga najwyższy wskaźnik IPC (1.90), skutecznie maskując latencję dostępu do pamięci pracą na rejestrach i osiągając rekordową wydajność \textbf{211.22 GFlop/s}.
+\end{itemize}
+
+\end{document}
