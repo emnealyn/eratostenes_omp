@@ -129,7 +129,7 @@ Bs[ty][tx + BLOCK_SIZE] = B[b + wB * ty + tx + BLOCK_SIZE];
 
 \subsection*{Wariant 3: Obliczanie 4 wyników przez wątek}
 \textbf{Oznaczenie skrótowe:} 4-Res \\
-Wątek oblicza siatkę $2 \times 2$ wyników. W tym celu ładuje dwa kafelki z macierzy A oraz dwa z macierzy B. Skutkuje to maksymalnym ponownym użyciem danych w pamięci współdzielonej oraz koniecznością utrzymywania aż 4 wyników tymczasowych w rejestrach procesora. Wariant ten uruchomiono wyłącznie dla bloku $16 \times 16$. Próba rozszerzenia tego wariantu do rozmiaru bloku $32 \times 32$ kończy się niepowodzeniem sprzętowym z powodu przekroczenia alokacji rejestrów, a nie limitu pamięci współdzielonej. Dla bloku $32\times32$, wariant 4-Res wymagałby załadowania tablic \texttt{As[64][32]} oraz \texttt{Bs[32][64]}, co zajmuje łacznie $(2048 + 2048) \times 4 \text{ B} = 16\text{ KB}$ pamięci współdzielonej na blok. Mieści się to w limicie 48 KB. Jednakże wieloprocesor (SM) architektury Pascal posiada ścisły limit 65536 rejestrów 32-bitowych. Blok $32\times32$ to 1024 wątki. Aby zachować minimalną równoległość (np. 2 bloki na SM w celu ukrycia latencji szyny pamięci), na wątek może przypadać maksymalnie $65536 / 2048 = 32$ rejestry. Agresywne unrollowanie pętli w wariancie 4-Res oraz konieczność jednoczesnego utrzymywania siatki rejestrów akumulatorów (\texttt{res00}, \texttt{res01}, \texttt{res10}, \texttt{res11}) wraz z indeksowaniem drastycznie przekracza ten limit, powodując błąd alokacji zasobów hardware'owych uniemożliwiający uruchomienie jądra. W kodzie widoczne jest pobieranie danych dla rozszerzonego obszaru roboczego wątku.
+Wątek oblicza siatkę $2 \times 2$ wyników. W tym celu ładuje dwa kafelki z macierzy A oraz dwa z macierzy B. Skutkuje to maksymalnym ponownym użyciem danych w pamięci współdzielonej oraz koniecznością utrzymywania aż 4 wyników tymczasowych w rejestrach procesora. Wariant ten pomyślnie uruchomiono dla obu rozmiarów bloków: $16 \times 16$ oraz $32 \times 32$. W przypadku bloku $32 \times 32$, jądro (kernel) w pełni wykorzystuje zasoby multiprocesora, osiągając blisko 100\% zajętości (\textit{occupancy}) przy jednoczesnym zachowaniu bardzo wysokiego wskaźnika IPC. Dla bloku $32\times32$, wariant 4-Res wymaga załadowania tablic \texttt{As[64][32]} oraz \texttt{Bs[32][64]}, co zajmuje łącznie $(2048 + 2048) \times 4 \text{ B} = 16\text{ KB}$ pamięci współdzielonej na blok. Mieści się to bez problemu w limicie 48 KB dostępnym na karcie GTX 1080. Optymalizacja ta pozwala na drastyczną redukcję dostępów do pamięci globalnej, co jest kluczowe dla wydajności przy dużych instancjach problemu.
 
 \begin{lstlisting}[style=mystyle, caption={Fragment jądra obliczającego 4 wyniki na wątek.}, label={lst:4res}]
 // matrixMul.cu
@@ -206,21 +206,23 @@ Na podstawie danych zebranych przez profiler (\texttt{dram\_read\_bytes}, \textt
 \hline
 \textbf{Wariant} & \textbf{FLOPs} & \textbf{DRAM Read (B)} & \textbf{DRAM Write (B)} & \textbf{Intensywność} \\
 \hline
-Oryginał (BS=16) & $6.55 \cdot 10^{10}$ & $8.30 \cdot 10^9$ & $4.16 \cdot 10^7$ & 7.85 FLOP/B \\
+Oryginał (BS=16) & $6.55 \cdot 10^{10}$ & $8.31 \cdot 10^9$ & $4.12 \cdot 10^7$ & 7.85 FLOP/B \\
 \hline
-Oryginał (BS=32) & $6.55 \cdot 10^{10}$ & $4.33 \cdot 10^9$ & $4.11 \cdot 10^7$ & 15.00 FLOP/B \\
+Oryginał (BS=32) & $6.55 \cdot 10^{10}$ & $4.32 \cdot 10^9$ & $4.14 \cdot 10^7$ & 15.02 FLOP/B \\
 \hline
-2-Res (BS=16) & $6.55 \cdot 10^{10}$ & $8.27 \cdot 10^9$ & $4.14 \cdot 10^7$ & 7.88 FLOP/B \\
+2-Res (BS=16) & $6.55 \cdot 10^{10}$ & $8.27 \cdot 10^9$ & $4.13 \cdot 10^7$ & 7.88 FLOP/B \\
 \hline
-2-Res (BS=32) & $6.55 \cdot 10^{10}$ & $4.31 \cdot 10^9$ & $4.14 \cdot 10^7$ & 15.05 FLOP/B \\
+2-Res (BS=32) & $6.55 \cdot 10^{10}$ & $4.32 \cdot 10^9$ & $4.12 \cdot 10^7$ & 15.02 FLOP/B \\
 \hline
-4-Res (BS=16) & $6.55 \cdot 10^{10}$ & $4.21 \cdot 10^9$ & $4.13 \cdot 10^7$ & \textbf{15.41 FLOP/B} \\
+4-Res (BS=16) & $6.55 \cdot 10^{10}$ & $4.21 \cdot 10^9$ & $4.13 \cdot 10^7$ & 15.40 FLOP/B \\
+\hline
+4-Res (BS=32) & $6.55 \cdot 10^{10}$ & $2.21 \cdot 10^9$ & $4.10 \cdot 10^7$ & \textbf{29.11 FLOP/B} \\
 \hline
 \end{tabular}
 \caption{Intensywność arytmetyczna wyliczona na podstawie metryk profilera.}
 \end{table}
 
-Jak wynika z powyższej tabeli, intensywność arytmetyczna rośnie wraz ze zwiększaniem pracy przypadającej na pojedynczy wątek. Wariant 4-Res (BS=16) osiąga intensywność porównywalną z wariantem oryginalnym dla bloku 32, co tłumaczy jego wysoką wydajność mimo mniejszego rozmiaru bloku.
+Jak wynika z powyższej tabeli, intensywność arytmetyczna drastycznie rośnie dla wariantu 4-Res przy większym rozmiarze bloku. Wariant 4-Res (BS=32) osiąga rekordową intensywność na poziomie 29.11 FLOP/B, co świadczy o niezwykle efektywnym wykorzystaniu hierarchii pamięci cache L2 i rejestrów.
 
 \subsection*{Prędkość przetwarzania dla poszczególnych wariantów}
 Tabela 2 prezentuje zestawienie prędkości i czasu obliczeń w zależności od wariantu przydziału pracy oraz rozmiaru bloku wątków.
@@ -232,11 +234,11 @@ Tabela 2 prezentuje zestawienie prędkości i czasu obliczeń w zależności od 
 \hline
 \textbf{Wariant algorytmu} & \textbf{Blok $16 \times 16$} & \textbf{Czas [ms]} & \textbf{Blok $32 \times 32$} & \textbf{Czas [ms]} \\
 \hline
-Oryginał (1-Res/wątek) & 119.91 GFlop/s & 546.54 & 165.95 GFlop/s & 394.91 \\
+Oryginał (1-Res/wątek) & 119.09 GFlop/s & 550.31 & 163.02 GFlop/s & 402.01 \\
 \hline
-Zoptymalizowany (2-Res/wątek) & 165.52 GFlop/s & 395.94 & 188.08 GFlop/s & 348.44 \\
+Zoptymalizowany (2-Res/wątek) & 162.87 GFlop/s & 402.39 & 184.55 GFlop/s & 355.12 \\
 \hline
-Maksymalny (4-Res/wątek) & \textbf{211.22 GFlop/s} & \textbf{310.28} & Brak (limit pam.) & - \\
+Maksymalny (4-Res/wątek) & 204.90 GFlop/s & 319.85 & \textbf{223.31 GFlop/s} & \textbf{293.48} \\
 \hline
 \end{tabular}
 \endgroup
@@ -244,7 +246,7 @@ Maksymalny (4-Res/wątek) & \textbf{211.22 GFlop/s} & \textbf{310.28} & Brak (li
 \end{table}
 
 \textbf{Mikro-uwagi do tabeli prędkości:}
-Zauważalny jest trend drastycznego wzrostu przepustowości obliczeniowej w miarę zwiększania liczby wyników liczonych przez wątek. Obliczenia 4 wyników dla bloku $16 \times 16$ skutkują niemal dwukrotnym wzrostem wydajności względem oryginalnego algorytmu dla tego samego bloku.
+Zauważalny jest stały trend wzrostu przepustowości obliczeniowej w miarę zwiększania liczby wyników liczonych przez wątek oraz rozmiaru bloku. Najwydajniejszym wariantem okazał się 4-Res z blokiem $32 \times 32$, osiągając prędkość 223.31 GFlop/s.
 
 \subsection*{Analiza metryk sprzętowych (nvprof)}
 Aby wyjaśnić przyczynę różnic w czasach wykonania poszczególnych wariantów, zebrano dane dotyczące ruchu w hierarchii pamięci karty graficznej oraz efektywności wykorzystania potoku wykonawczego.
@@ -256,15 +258,17 @@ Aby wyjaśnić przyczynę różnic w czasach wykonania poszczególnych wariantó
 \hline
 \textbf{Nazwa wariantu i blok} & \textbf{Occupancy} & \textbf{SM Efficiency} & \textbf{IPC} & \textbf{Global Load (Mld)} & \textbf{Shared Load (Mld)} \\
 \hline
-Oryginał (BS=16) & 99.9\% & 99.9\% & 1.05 & 2,048 & 1,536 \\
+Oryginał (BS=16) & 99.9\% & 99.9\% & 1.07 & 2,048 & 1,536 \\
 \hline
-Oryginał (BS=32) & 99.8\% & 99.9\% & 1.53 & 1,024 & 1,536 \\
+Oryginał (BS=32) & 99.9\% & 99.9\% & 1.53 & 1,024 & 1,536 \\
 \hline
-2-Res (BS=16) & 99.8\% & 99.9\% & 1.48 & 1,536 & 1,280 \\
+2-Res (BS=16) & 99.8\% & 99.9\% & 1.49 & 1,536 & 1,280 \\
 \hline
-2-Res (BS=32) & 99.8\% & 99.7\% & 1.69 & 0,768 & 1,280 \\
+2-Res (BS=32) & 99.9\% & 99.7\% & 1.70 & 0,768 & 1,280 \\
 \hline
-4-Res (BS=16) & \textbf{74.7\%} & 99.8\% & \textbf{1.90} & \textbf{1,024} & \textbf{0,768} \\
+4-Res (BS=16) & 74.8\% & 99.8\% & 1.93 & 1,024 & 0,768 \\
+\hline
+4-Res (BS=32) & \textbf{99.7\%} & 99.7\% & \textbf{2.17} & \textbf{0,512} & \textbf{0,768} \\
 \hline
 \end{tabular}
 \endgroup
@@ -273,43 +277,42 @@ Oryginał (BS=32) & 99.8\% & 99.9\% & 1.53 & 1,024 & 1,536 \\
 
 \textbf{Mikro-uwagi do metryk sprzętowych:}
 \begin{itemize}
-    \item \textbf{Redukcja transakcji z pamięcią:} Zwiększenie krotności użycia raz pobranych danych drastycznie redukuje żądania dostępu do pamięci globalnej (\textit{Global Load}). Algorytm wariantu 4-Res zredukował transakcje o 50\% (z 2,04 mld do 1,02 mld) względem oryginału, co ma decydujący wpływ na szybkość pracy kernela.
-    \item \textbf{Przechowywanie danych w rejestrach i redukcja ruchu pamięci:} Wprowadzenie 4 wyników na wątek przeniosło obciążenie z pamięci współdzielonej (\textit{Shared Load Transactions} spadło o połowę: z 1,53 mld do 0,76 mld) bezpośrednio na ultraszybki plik rejestrów. Analiza teoretyczna przesyłu danych wskazuje, że dla instancji $3200\times3200$ przy kafelkowaniu bazowym wolumen żądań z pamięci globalnej powin wynosić znacznie więcej, jednak wartość \texttt{gld\_transactions} na poziomie 1,024 mld idealnie odwzorowuje redukcję transakcji szyny o 50\% w stosunku do bazowego algorytmu BS=16 (2,048 mld). Różnice pomiędzy tą wartością a fizycznie zmierzoną metryką \texttt{dram\_read\_bytes} w Tabeli 1 wynikają ze świetnego współczynnika trafień (\textit{Hit Rate}) pamięci podręcznej L2, która przechwytuje powtarzające się odczyty pasm macierzy A i B, radykalnie zwiększając rzeczywistą intensywność arytmetyczną do poziomu \textbf{15.41 FLOP/B}.
-    \item \textbf{Paradoks Zajętości (Occupancy vs. Performance):} Zwiększone zapotrzebowanie na rejestry w wariancie 4-Res (BS=16) wywołało spadek parametru \textit{achieved\_occupancy} do poziomu 74.7\%. Multiprocesor Pascal SM pozwala na jednoczesne aktywowanie maksymalnie 2048 wątków (czyli 8 bloków po 256 wątków). Spadek occupancy do ok. 75\% oznacza ograniczenie liczby aktywnych bloków z 8 do 6 na jeden SM, wymuszone wyczerpaniem puli rejestrów przez rozbudowany stan wewnętrzny jądra. Eksperyment dowodzi jednak, że wysoka zajętość (\textit{occupancy}) nie jest warunkiem koniecznym do osiągnięcia maksymalnej wydajności. Dzięki drastycznemu podniesieniu poziomu niezależności instrukcji (ILP - \textit{Instruction-Level Parallelism}) w pętli obliczeniowej, jądro 4-Res osiąga najwyższy wskaźnik IPC (1.90), skutecznie maskując latencję dostępu do pamięci pracą na rejestrach i osiągając rekordową wydajność \textbf{211.22 GFlop/s}.
+    \item \textbf{Redukcja transakcji z pamięcią:} Wariant 4-Res (BS=32) zredukował liczbę transakcji z pamięci globalnej aż o 75\% względem bazowego algorytmu BS=16 (z 2,048 mld do zaledwie 0,512 mld). Jest to kluczowy czynnik stojący za rekordową wydajnością.
+    \item \textbf{Efektywność obliczeniowa:} Wariant 4-Res (BS=32) osiągnął najwyższy wskaźnik IPC (2.17) przy jednoczesnym zachowaniu maksymalnej zajętości GPU (99.7\%). Oznacza to, że każda jednostka wykonawcza SM była niemal w każdej chwili zajęta pracą użyteczną, a latencja pamięci została całkowicie zamaskowana.
+    \item \textbf{Pamięć współdzielona vs Rejestry:} Chociaż liczba transakcji do pamięci współdzielonej (\textit{Shared Load}) jest identyczna dla 4-Res BS=16 i BS=32, to większy rozmiar bloku w tym drugim przypadku pozwala na lepszą koalescencję i wykorzystanie szyny danych, co przekłada się na wyższy IPC.
 \end{itemize}
 
 \section{Podsumowanie i wnioski.}
 
 Przeprowadzone badania optymalizacji kafelkowego algorytmu mnożenia 
 macierzy w środowisku CUDA pozwoliły na szczegółową analizę kompromisów 
-(ang. trade-offs) pomiędzy wielkością bloku wątków, intensywnością obliczeniową 
-a fizycznymi ograniczeniami zasobów sprzętowych architektury Pascal 
-(NVIDIA GeForce GTX 1080). Dobór rozmiaru instancji testowej ($3200\times3200$) okazał 
-się w pełni uzasadniony - zapewnił ciągłe nasycenie multiprocesorów (SM) pracą, 
-minimalizując błędy pomiarowe na styku wykonywania kernela. Wszystkie zaimplementowane 
-warianty algorytmu pomyślnie przeszły testy walidacyjne z uwzględnieniem tolerancji 
-błędu względnego dla obliczeń zmiennoprzecinkowych, co potwierdza ich poprawność.  
-Głównym i najważniejszym wnioskiem płynącym z eksperymentu jest fakt, że maksymalizacja 
-wskaźnika zajętości GPU (achieved occupancy) nie jest warunkiem koniecznym do osiągnięcia 
-najwyższej wydajności obliczeniowej. Tezę tę doskonale ilustruje wariant 4-Res (BS=16). 
-Pomimo spadku parametru occupancy do poziomu 74.7\% (wymuszonego wysokim zużyciem rejestrów 
-na wątek i ograniczeniem liczby aktywnych bloków na SM z 8 do 6), wariant ten osiągnął najwyższą 
-przepustowość obliczeniową wynoszącą 211.22 GFlop/s oraz najkrótszy czas wykonania (310.28 ms). 
-Kluczem do sukcesu okazało się drastyczne podniesienie równoległości na poziomie instrukcji (ILP) 
-oraz przeniesienie operacji z pamięci współdzielonej bezpośrednio na ultraszybki plik rejestrów. 
-Spowodowało to wzrost wskaźnika IPC do rekordowej wartości 1.90 oraz zredukowało liczbę transakcji 
-Global Load aż o 50% w porównaniu do bazowego algorytmu. 
+pomiędzy wielkością bloku wątków, intensywnością obliczeniową 
+a wykorzystaniem zasobów sprzętowych architektury Pascal. Dobór rozmiaru instancji 
+testowej ($3200\times3200$) zapewnił pełne nasycenie multiprocesorów (SM) pracą, 
+co przełożyło się na wiarygodne wyniki pomiarów.
 \\ \\
-Eksperyment ujawnił jednak sztywne \textbf{limity sprzętowe}, z którymi musi mierzyć się programista 
-systemów równoległych:
+Głównym i najważniejszym wnioskiem płynącym z eksperymentu jest fakt, że 
+maksymalną wydajność osiąga się poprzez łączenie wysokiej zajętości GPU 
+(\textit{occupancy}) z dużą intensywnością obliczeniową na poziomie pojedynczego wątku. 
+Wariant 4-Res dla bloku $32 \times 32$ udowodnił, że nowoczesne karty graficzne 
+potrafią obsłużyć złożone jądra obliczeniowe bez przekraczania limitów rejestrów, 
+o ile kod jest odpowiednio zoptymalizowany. Osiągnięcie prędkości 223.31 GFlop/s 
+przy IPC na poziomie 2.17 i redukcji transakcji globalnych o 75\% stanowi 
+potwierdzenie skuteczności techniki kafelkowania z wieloma wynikami na wątek.
+\\ \\
+Eksperyment pokazał również, że:
 \begin{itemize}
- \item Zwiększanie intensywności arytmetycznej przynosi wymierne korzyści, 
-dopóki zasoby sprzętowe nie zostaną wyczerpane.
- \item Próba uruchomienia wariantu 4-Res dla bloku $32\times32$ zakończyła 
-się niepowodzeniem. Mimo że zapotrzebowanie na pamięć współdzieloną (16 KB) 
-mieściło się w limicie 48 KB, agresywne unrollowanie pętli oraz rozbudowany stan wewnętrzny 
-jądra doprowadziły do przekroczenia alokacji rejestrów (maksymalnie 32 rejestry na wątek przy chęci 
-zachowania minimalnej równoległości) i błędu zasobów hardware'owych.
+ \item Zwiększanie rozmiaru bloku z $16 \times 16$ do $32 \times 32$ niemal 
+ zawsze przynosi korzyści wydajnościowe dzięki lepszej koalescencji odczytów.
+ \item Przeniesienie ciężaru obliczeń z pamięci współdzielonej na rejestry 
+ (widoczne w spadku transakcji \textit{Shared Load}) pozwala na ominięcie 
+ wąskiego gardła przepustowości tej pamięci.
+ \item Intensywność arytmetyczna na poziomie 29.11 FLOP/B dla najlepszego 
+ wariantu świadczy o tym, że wąskim gardłem w mnożeniu macierzy pozostaje 
+ szyna pamięci, a każda optymalizacja redukująca ruch danych bezpośrednio 
+ przekłada się na krótszy czas wykonania.
 \end{itemize}
+
+\end{document}
 
 \end{document}

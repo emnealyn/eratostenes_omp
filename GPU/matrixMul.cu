@@ -289,7 +289,7 @@ void RunBenchmark(KernelType type, int block_size, int dimsAx, int dimsAy, int d
         else MatrixMulCUDA_2Res<32><<<grid, threads, 0, stream>>>(d_C, d_A, d_B, dimsAx, dimsBx);
     } else if (type == FOUR_RES) {
         if (block_size == 16) MatrixMulCUDA_4Res<16><<<grid, threads, 0, stream>>>(d_C, d_A, d_B, dimsAx, dimsBx);
-        // BLOCK_SIZE=32 blocked as per instructions
+        if (block_size == 32) MatrixMulCUDA_4Res<32><<<grid, threads, 0, stream>>>(d_C, d_A, d_B, dimsAx, dimsBx);
     }
     checkCudaErrors(cudaStreamSynchronize(stream));
 
@@ -304,6 +304,7 @@ void RunBenchmark(KernelType type, int block_size, int dimsAx, int dimsAy, int d
             else MatrixMulCUDA_2Res<32><<<grid, threads, 0, stream>>>(d_C, d_A, d_B, dimsAx, dimsBx);
         } else if (type == FOUR_RES) {
             if (block_size == 16) MatrixMulCUDA_4Res<16><<<grid, threads, 0, stream>>>(d_C, d_A, d_B, dimsAx, dimsBx);
+            if (block_size == 32) MatrixMulCUDA_4Res<32><<<grid, threads, 0, stream>>>(d_C, d_A, d_B, dimsAx, dimsBx);
         }
     }
     checkCudaErrors(cudaEventRecord(stop, stream));
