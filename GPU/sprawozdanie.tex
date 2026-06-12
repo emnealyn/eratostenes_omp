@@ -88,6 +88,15 @@ Zgodnie ze specyfikacją sprzętową karty NVIDIA GeForce GTX 1080, limit pamię
 \end{itemize}
 W warunkach rzeczywistych te ekstremalne granice teoretyczne są niemożliwe do osiągnięcia z powodu ograniczeń fizycznego rozmiaru pliku rejestrów procesorów strumieniowych (SM), które uniemożliwiają przechowywanie tak ogromnej liczby zmiennych akumulacyjnych bez zjawiska \textit{register spilling} do wolnej pamięci lokalnej.
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=1\textwidth]{images/6.png}
+    \caption{Podział bloku na wiązki i wątki dla wariantów 32x32 i 16x16.}
+    \label{fig:2res_loading}
+\end{figure} 
+
+\newpage
+
 \subsection*{Wariant 1: Oryginalny algorytm (1 wynik obliczany przez wątek)}
 \textbf{Oznaczenie skrótowe:} 1-Res \\
 Wersja bazowa zaczerpnięta z przykładów NVIDIA. Każdy wątek ładuje do pamięci współdzielonej po jednym słowie z macierzy A i B, a następnie oblicza dokładnie jeden wynik cząstkowy tablicy C. Wątek przechowuje wynik tymczasowy w jednej zmiennej rejestrowej (\texttt{Csub}). Jak widać na Listingu 1 oraz w kodzie źródłowym \texttt{matrixMul.cu}, dostęp do pamięci globalnej w celu załadowania kafelków odbywa się w sposób koalescyjny.
@@ -100,8 +109,15 @@ Bs[ty][tx] = B[b + wB * ty + tx];
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{images/1rstransactions.png}
-    \caption{Koalescencyjne pobieranie danych do pamięci współdzielonej w wariancie 1-Res.}
+    \includegraphics[width=1.0\textwidth]{images/3.png}
+    \caption{Dostęp do pamięci potrzebny dla obliczeń jednego wątku w wariancie 1-Res dla bloku 32x32.}
+    \label{fig:1res_loading}
+\end{figure} 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{images/1.png}
+    \caption{Dostęp do pamięci dla wątku i osnowy w wariancie 1-Res.}
     \label{fig:1res_loading}
 \end{figure} 
 
@@ -120,8 +136,8 @@ Bs[ty][tx + BLOCK_SIZE] = B[b + wB * ty + tx + BLOCK_SIZE];
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=1\textwidth]{images/2rs.png}
-    \caption{Pobieranie danych do pamięci współdzielonej w wariancie 2  -Res dla bloku $16 \times 16$.}
+    \includegraphics[width=1\textwidth]{images/4.png}
+    \caption{Dostęp do pamięci potrzebny dla obliczeń jednego wątku w wariancie 2-Res dla bloku 32x32.}
     \label{fig:2res_loading}
 \end{figure} 
 
@@ -141,8 +157,8 @@ Bs[ty][tx + BLOCK_SIZE] = B[b + wB * ty + tx + BLOCK_SIZE];
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=1\textwidth]{images/4rs.png}
-    \caption{Pobieranie danych do pamięci współdzielonej w wariancie 4-Res dla bloku $16 \times 16$.}
+    \includegraphics[width=1\textwidth]{images/5.png}
+    \caption{Dostęp do pamięci potrzebny dla obliczeń jednego wątku w wariancie 4-Res dla bloku 32x32.}
     \label{fig:4res_loading}
 \end{figure} 
 
