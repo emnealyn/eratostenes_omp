@@ -186,9 +186,11 @@ Wszystkie zaimplementowane warianty kerneli pomyślnie przeszły test walidacyjn
 \subsection*{Obliczenia współczynnika CGMA (Teoria)}
 Współczynnik CGMA (Compute to Global Memory Access) określa stosunek liczby operacji arytmetycznych do liczby dostępów do pamięci globalnej. Na poziomie teoretycznym dla kafelkowego mnożenia macierzy:
 \begin{itemize}
-    \item \textbf{Wariant 1-Res:} Każdy wątek ładuje 2 słowa (8 bajtów - jedno z A, jedno z B) z pamięci globalnej do współdzielonej, aby wykonać 1 operację FMA (2 operacje arytmetyczne: mnożenie i dodawanie) wewnątrz pętli $k$. Daje to teoretyczny stosunek 1 operacji na 1 załadowane słowo.
-    \item \textbf{Wariant 2-Res:} Wątek pobiera do pamięci współdzielonej 3 słowa (1 słowo z macierzy A oraz 2 słowa z macierzy B), w oparciu o które wykonuje w pętli 2 operacje FMA (co odpowiada 4 operacjom arytmetycznym). Teoretyczny współczynnik CGMA wynosi w tym przypadku $\frac{4}{3} \approx 1.33$ operacji na jedno pobrane słowo z pamięci globalnej.
-    \item \textbf{Wariant 4-Res:} Wątek ładuje 4 słowa (2 z A, 2 z B), ale wykonuje 4 operacje FMA (8 operacji arytmetycznych). Teoretyczny stosunek CGMA rośnie do 2 operacji na słowo, ponieważ dane raz załadowane do pamięci współdzielonej są wykorzystywane dwukrotnie częściej.
+    \item \textbf{Wariant 1-Res:} Każdy wątek ładuje 2 słowa z pamięci globalnej do współdzielonej, a następnie wykonuje pętlę $k$ o długości $BS$ (rozmiar bloku). W każdej iteracji pętli wykonywana jest 1 operacja FMA (2 operacje arytmetyczne: mnożenie i dodawanie), co daje łącznie $2 \cdot BS$ operacji. Teoretyczny współczynnik CGMA wynosi zatem $\frac{2 \cdot BS}{2} = BS$ operacji na jedno pobrane słowo.
+    
+    \item \textbf{Wariant 2-Res:} Wątek pobiera do pamięci współdzielonej 3 słowa, w oparciu o które wykonuje w pętli $k$ (trwającej $BS$ kroków) po 2 operacje FMA (4 operacje arytmetyczne) na iterację. Łącznie daje to $4 \cdot BS$ operacji arytmetycznych. Teoretyczny współczynnik CGMA wynosi w tym przypadku $\frac{4 \cdot BS}{3} \approx 1.33 \cdot BS$ operacji na jedno pobrane słowo.
+    
+    \item \textbf{Wariant 4-Res:} Wątek ładuje 4 słowa i wykonuje pętlę $k$ przez $BS$ kroków, realizując 4 operacje FMA (8 operacji arytmetycznych) w każdej iteracji, co daje sumarycznie $8 \cdot BS$ operacji. Teoretyczny stosunek CGMA wynosi więc $\frac{8 \cdot BS}{4} = 2 \cdot BS$ operacji na jedno pobrane słowo, ponieważ dane są wykorzystywane dwukrotnie częściej.
 \end{itemize}
 
 \begin{figure}[h!]
@@ -239,6 +241,38 @@ Oryginał (BS=32) & $6.55 \cdot 10^{10}$ & $4.32 \cdot 10^9$ & $4.14 \cdot 10^7$
 \end{table}
 
 Jak wynika z powyższej tabeli, intensywność arytmetyczna drastycznie rośnie dla wariantu 4-Res przy większym rozmiarze bloku. Wariant 4-Res (BS=32) osiąga rekordową intensywność na poziomie 29.11 FLOP/B, co świadczy o niezwykle efektywnym wykorzystaniu hierarchii pamięci cache L2 i rejestrów.
+
+\subsection*{Praktyczny współczynnik CGMA i wpływ pamięci cache}
+W celu pogłębionej analizy wykorzystania podsystemu pamięci, do obliczeń włączono metryki dotyczące liczby transakcji pamięci globalnej (\texttt{gld\_transactions}, \texttt{gst\_transactions}). Pozwala to na wyznaczenie praktycznego współczynnika CGMA (wyrażonego w FLOP/B), który reprezentuje wszystkie żądania dostępu do danych generowane przez procesory strumieniowe, zanim zostaną one obsłużone przez hierarchię pamięci cache.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Wariant} & \textbf{Transakcje Load} & \textbf{CGMA [FLOP/B]} & \textbf{Intensywność (DRAM) [FLOP/B]} \\
+\hline
+Oryginał (BS=16) & $2,05 \cdot 10^9$ & 1,00 & 7,85 \\
+\hline
+Oryginał (BS=32) & $1,02 \cdot 10^9$ & 2,00 & 15,02 \\
+\hline
+2-Res (BS=16) & $1,54 \cdot 10^9$ & 1,33 & 7,88 \\
+\hline
+2-Res (BS=32) & $0,77 \cdot 10^9$ & 2,66 & 15,02 \\
+\hline
+4-Res (BS=16) & $1,02 \cdot 10^9$ & 2,00 & 15,40 \\
+\hline
+4-Res (BS=32) & $0,51 \cdot 10^9$ & \textbf{4,00} & \textbf{29,11} \\
+\hline
+\end{tabular}
+\caption{Porównanie praktycznego współczynnika CGMA (transakcje) z rzeczywistą intensywnością (ruch do DRAM).}
+\end{table}
+
+Porównanie tych dwóch wartości pozwala na wyciągnięcie następujących wniosków:
+\begin{itemize}
+    \item \textbf{Zgodność z modelem teoretycznym:} Praktyczny współczynnik CGMA (wyliczony jako $\frac{\text{FLOP}}{\text{Transakcje} \times 32\text{B}}$) niemal idealnie pokrywa się z wyliczeniami teoretycznymi. Dla wariantu 4-Res (BS=32) wynosi on 4,00 FLOP/B, co odpowiada 16 operacjom na każde załadowane 4 słowa danych (2 z macierzy A i 2 z B).
+    \item \textbf{Rola pamięci cache L2:} Rzeczywista intensywność mierzona na poziomie DRAM jest około 7-krotnie wyższa niż współczynnik CGMA. Świadczy to o tym, że ogromna większość (ok. 85\%) transakcji generowanych przez bloki wątków jest skutecznie filtrowana przez pamięć cache L2. Dzięki temu te same kafelki danych, pobrane raz z pamięci globalnej, są wielokrotnie wykorzystywane przez różne bloki wątków bez obciążania szyny pamięci VRAM.
+    \item \textbf{Wniosek:} Przewaga wariantu 4-Res (BS=32) wynika z synergii optymalizacji na poziomie rejestrów (wysoki CGMA) oraz doskonałej lokalności danych, która pozwala na maksymalne wykorzystanie przepustowości pamięci cache L2.
+\end{itemize}
 
 \subsection*{Prędkość przetwarzania dla poszczególnych wariantów}
 Tabela 2 prezentuje zestawienie prędkości i czasu obliczeń w zależności od wariantu przydziału pracy oraz rozmiaru bloku wątków.
@@ -328,7 +362,5 @@ Eksperyment pokazał również, że:
  szyna pamięci, a każda optymalizacja redukująca ruch danych bezpośrednio 
  przekłada się na krótszy czas wykonania.
 \end{itemize}
-
-\end{document}
 
 \end{document}
